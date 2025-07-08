@@ -22,6 +22,9 @@ struct LUHORPROTOTYPE_API FMeleeAttackData
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	float Damage{ 5.f };
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	TObjectPtr<UAnimMontage> Montage{};
 };
 
 
