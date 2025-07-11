@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "LuhorMovementComponent.h"
 #include "Engine/DataAsset.h"
 #include "MeleeAttackChain.generated.h"
 
@@ -22,6 +23,9 @@ struct LUHORPROTOTYPE_API FMeleeAttackData
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	float Damage{ 5.f };
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta=(Hide))
+	FCurvedLaunchData CurvedLaunchData;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	TObjectPtr<UAnimMontage> Montage{};
@@ -36,4 +40,7 @@ class LUHORPROTOTYPE_API UMeleeAttackChain : public UDataAsset
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	TArray<FMeleeAttackData> Attacks{};
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float ChainLeniencyTime{ 0.2f };
 };

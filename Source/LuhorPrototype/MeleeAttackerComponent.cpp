@@ -2,7 +2,11 @@
 
 #include "MeleeAttackerComponent.h"
 
+#include "HittableComponent.h"
+#include "LuhorMovementComponent.h"
+#include "Util/ComponentUtil.h"
 #include "Components/ShapeComponent.h"
+#include "Util/FDebugUtil.h"
 
 
 UMeleeAttackerComponent::UMeleeAttackerComponent()
@@ -13,8 +17,23 @@ UMeleeAttackerComponent::UMeleeAttackerComponent()
 
 bool UMeleeAttackerComponent::TryAttack()
 {
-	if (CurrentAttackState != EMeleeAttackState::None) return false;
+	if (CurrentAttackState != EMeleeAttackState::None)
+	{
+		if (!AttackQueued)
+		{
+			AttackQueued = true;
+		}
+		
+		return false;
+	}
+	
+	if (GetWorld()->GetTimerManager().IsTimerActive(ChainLeniencyTimer))
+	{
+		GetWorld()->GetTimerManager().ClearTimer(ChainLeniencyTimer);
+		++CurrentChainIndex;
+	}
 
+	AttackQueued = false;
 	DoWindup();
 	return true;
 }
@@ -23,42 +42,38 @@ void UMeleeAttackerComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	checkf(MeleeAttackChain, TEXT("No attack chain assigned to %s on %s!"), *GetName(), *GetOwner()->GetName());
-
-	for (FMeleeAttackData& data : MeleeAttackChain->Attacks)
+	FDebugUtil::QuitCheckf(MeleeAttackChain, TEXT("No attack chain assigned to %s on %s!"), *GetName(), *GetOwner()->GetName());
+	for (const FMeleeAttackData& data : MeleeAttackChain->Attacks)
 	{
-		checkf(data.Montage, TEXT("Melee Attack Chain %s doesn't have a montage assigned on all attacks!"), *MeleeAttackChain.GetName());
+		FDebugUtil::QuitCheckf(data.Montage, TEXT("Melee Attack Chain %s doesn't have a montage assigned on all attacks!"), *MeleeAttackChain.GetName());
 	}
 	
-	// Fetch and verify skeletal mesh
 	MainSkeletalMesh = GetOwner()->FindComponentByTag<USkeletalMeshComponent>(MainSkeletalMeshComponentTag);
-	checkf(MainSkeletalMesh, TEXT("Actor %s has no skeletal mesh with tag %s!"), *GetOwner()->GetName(), *MainSkeletalMeshComponentTag.ToString());
+	FDebugUtil::QuitCheckf(MainSkeletalMesh, TEXT("Actor %s has no skeletal mesh with tag %s!"), *GetOwner()->GetName(), *MainSkeletalMeshComponentTag.ToString());
 
-	// Fetch and verify contact collision
-	const TArray<TObjectPtr<USceneComponent>>& children{ GetAttachChildren() };
-	const TObjectPtr<USceneComponent>* first{};
-	first = children.FindByPredicate([](const TObjectPtr<USceneComponent>& comp)
-	{
-		return comp->IsA<UShapeComponent>();
-	});
-
-	checkf(first, TEXT("No shape component found as child of %s on %s!"), *GetName(), *GetOwner()->GetName());
-	ContactCollision = Cast<UShapeComponent>(*first);
-	check(ContactCollision);
+	ContactCollision = FComponentUtil::GetChildComponentOfClass<UShapeComponent>(this);
+	FDebugUtil::QuitCheckf(ContactCollision, TEXT("Component %s on actor %s has no shape component as a child!"), *GetName(), *GetOwner()->GetName());
 
 	// Initialize contact collision
 	ContactCollision->SetGenerateOverlapEvents(true);
 	ContactCollision->OnComponentBeginOverlap.AddDynamic(this, &ThisClass::OnContactCollisionBeginOverlap);
 	DisableContactCollision();
 
+	constexpr ECollisionChannel HITBOX_CHANNEL{ ECC_GameTraceChannel1 };
+	constexpr ECollisionChannel ATTACKBOX_CHANNEL{ ECC_GameTraceChannel2 };
+	ContactCollision->SetCollisionObjectType(ATTACKBOX_CHANNEL);
+	ContactCollision->SetCollisionResponseToChannel(HITBOX_CHANNEL, ECR_Overlap);
+	ContactCollision->SetCollisionResponseToChannel(ATTACKBOX_CHANNEL, ECR_Ignore);
+
+	MovementComponent = FComponentUtil::GetFirstComponentOfClass<ULuhorMovementComponent>(GetOwner());
 }
 
 void UMeleeAttackerComponent::DoWindup()
 {
-	OnMeleeAttackStarted.Broadcast();
 	SetMeleeAttackState(EMeleeAttackState::Windup);
-	
 	const FMeleeAttackData& data{ GetCurrentAttack() };
+	
+	OnMeleeAttackStarted.Broadcast();
 
 	const float playRate{ GetSectionPlayRate(data.Montage, "windup", data.WindupTime) };
 	const bool playSuccess{ MainSkeletalMesh->GetAnimInstance()->Montage_Play(data.Montage, playRate) != 0.f };
@@ -69,41 +84,72 @@ void UMeleeAttackerComponent::DoWindup()
 
 	MainSkeletalMesh->GetAnimInstance()->Montage_SetPlayRate(data.Montage, playRate);
 	
-	
-	GetWorld()->GetTimerManager().SetTimer(CurrentAttackStateTimer, this, &ThisClass::DoContact, data.WindupTime);
+	GetWorld()->GetTimerManager().SetTimer(
+		CurrentAttackStateTimer, this, &ThisClass::DoContact, data.WindupTime
+	);
 }
 
 void UMeleeAttackerComponent::DoContact()
 {
 	SetMeleeAttackState(EMeleeAttackState::Contact);
-
 	const FMeleeAttackData& data{ GetCurrentAttack() };
-	GetWorld()->GetTimerManager().SetTimer(CurrentAttackStateTimer, this, &ThisClass::DoRecovery, data.ContactTime);
 
 	EnableContactCollision();
 
+	if (MovementComponent)
+	{
+		FVector launchDir{ GetForwardVector() };
+		launchDir.Z = 0;
+		MovementComponent->DoCurvedLaunch(launchDir, data.CurvedLaunchData);
+	}
+
 	const float playRate{ GetSectionPlayRate(data.Montage, "contact", data.ContactTime) };
 	MainSkeletalMesh->GetAnimInstance()->Montage_SetPlayRate(data.Montage, playRate);
+	
+	GetWorld()->GetTimerManager().SetTimer(
+		CurrentAttackStateTimer, this, &ThisClass::DoRecovery, data.ContactTime
+	);
 }
 
 void UMeleeAttackerComponent::DoRecovery()
 {
 	SetMeleeAttackState(EMeleeAttackState::Recovery);
-
 	const FMeleeAttackData& data{ GetCurrentAttack() };
-	GetWorld()->GetTimerManager().SetTimer(CurrentAttackStateTimer, this, &ThisClass::EndAttack, data.RecoveryTime);
 
 	DisableContactCollision();
 
 	const float playRate{ GetSectionPlayRate(data.Montage, "recovery", data.RecoveryTime) };
 	MainSkeletalMesh->GetAnimInstance()->Montage_SetPlayRate(data.Montage, playRate);
 	
+	GetWorld()->GetTimerManager().SetTimer(
+		CurrentAttackStateTimer, this, &ThisClass::EndAttack, data.RecoveryTime
+	);
 }
 
 void UMeleeAttackerComponent::EndAttack()
 {
-	OnMeleeAttackDone.Broadcast();
 	SetMeleeAttackState(EMeleeAttackState::None);
+
+	if (CurrentChainIndex + 1 >= MeleeAttackChain->Attacks.Num())
+	{
+		AttackQueued = false;
+		EndChainLeniency();
+	}
+	else
+	{
+		GetWorld()->GetTimerManager().SetTimer(
+			ChainLeniencyTimer, this, &ThisClass::EndChainLeniency, MeleeAttackChain->ChainLeniencyTime
+		);
+	}
+
+	if (AttackQueued) TryAttack();
+	
+	OnMeleeAttackDone.Broadcast();
+}
+
+void UMeleeAttackerComponent::EndChainLeniency()
+{
+	CurrentChainIndex = 0;
 }
 
 void UMeleeAttackerComponent::EnableContactCollision()
@@ -116,10 +162,19 @@ void UMeleeAttackerComponent::DisableContactCollision()
 	ContactCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
-void UMeleeAttackerComponent::OnContactCollisionBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
-                                                             UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+void UMeleeAttackerComponent::OnContactCollisionBeginOverlap(
+	UPrimitiveComponent* OverlappedComp,
+	AActor* OtherActor,
+	UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex,
+	bool bFromSweep,
+	const FHitResult& SweepResult)
 {
-	UE_LOG(LogTemp, Display, TEXT("CONTACT!"));
+	UHittableComponent* hittable{ Cast<UHittableComponent>(OtherComp->GetAttachParent()) };
+	if (!hittable) return;
+
+	const FMeleeAttackData& data{ GetCurrentAttack() };
+	hittable->Hit({ data.Damage });
 }
 
 void UMeleeAttackerComponent::SetMeleeAttackState(EMeleeAttackState NewState)
@@ -132,7 +187,7 @@ void UMeleeAttackerComponent::SetMeleeAttackState(EMeleeAttackState NewState)
 
 const FMeleeAttackData& UMeleeAttackerComponent::GetCurrentAttack() const
 {
-	return MeleeAttackChain->Attacks[CurrentChainComboIndex];
+	return MeleeAttackChain->Attacks[CurrentChainIndex];
 }
 
 float UMeleeAttackerComponent::ConvertPlayRate(float OriginalTime, float DesiredTime) const

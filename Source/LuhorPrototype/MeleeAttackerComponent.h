@@ -7,6 +7,7 @@
 #include "Components/ActorComponent.h"
 #include "MeleeAttackerComponent.generated.h"
 
+class ULuhorMovementComponent;
 class UCapsuleComponent;
 
 UENUM(BlueprintType)
@@ -44,14 +45,20 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	TObjectPtr<UMeleeAttackChain> MeleeAttackChain;
 
-	
+	// Required Components (Error if not present)
 	UPROPERTY() TObjectPtr<USkeletalMeshComponent> MainSkeletalMesh{};
 	UPROPERTY() TObjectPtr<UShapeComponent> ContactCollision{};
+
+	// Optional Components
+	UPROPERTY() TObjectPtr<ULuhorMovementComponent> MovementComponent{};
 
 	EMeleeAttackState CurrentAttackState{ EMeleeAttackState::None };
 	FTimerHandle CurrentAttackStateTimer;
 
-	int CurrentChainComboIndex{ 0 };
+	int CurrentChainIndex{ 0 };
+	FTimerHandle ChainLeniencyTimer;
+
+	bool AttackQueued{ false };
 	
 	virtual void BeginPlay() override;
 
@@ -59,6 +66,7 @@ protected:
 	void DoContact();
 	void DoRecovery();
 	void EndAttack();
+	void EndChainLeniency();
 	
 	void EnableContactCollision();
 	void DisableContactCollision();
@@ -76,7 +84,7 @@ protected:
 	void SetMeleeAttackState(EMeleeAttackState NewState);
 	const FMeleeAttackData& GetCurrentAttack() const;
 	
-	// Calculate a play rate that makes an `originalTime` second section take `desiredTime` seconds 
+	// Calculate a play rate that makes an `originalTime` seconds long section take `desiredTime` seconds 
 	float ConvertPlayRate(float OriginalTime, float DesiredTime) const;
 	float GetSectionPlayRate(const UAnimMontage* Montage, FName SectionName, float DesiredTime) const;
 };

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
-using System.Collections.Generic;
 
 public class LuhorPrototypeEditorTarget : TargetRules
 {
@@ -11,5 +10,6 @@ public class LuhorPrototypeEditorTarget : TargetRules
 		DefaultBuildSettings = BuildSettingsVersion.V5;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_5;
 		ExtraModuleNames.Add("LuhorPrototype");
+		ExtraModuleNames.Add("LuhorPrototypeEditor");
 	}
 }
