@@ -3,7 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ComponentDependencies.h"
 #include "GameFramework/CharacterMovementComponent.h"
+
 #include "LuhorMovementComponent.generated.h"
 
 USTRUCT(BlueprintType)
@@ -24,10 +26,12 @@ struct LUHORPROTOTYPE_API FCurvedLaunchData
 class UCharacterMovementComponent;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class LUHORPROTOTYPE_API ULuhorMovementComponent : public UCharacterMovementComponent
+class LUHORPROTOTYPE_API ULuhorMovementComponent : public UCharacterMovementComponent, public IComponentDependencies
 {
 	GENERATED_BODY()
 
+	virtual Dependencies GetDependencies() const override;
+	
 public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLaunchStart, FCurvedLaunchData, Data);
 	UPROPERTY(BlueprintAssignable) FOnLaunchStart OnLaunchStart;

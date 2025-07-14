@@ -2,6 +2,17 @@
 
 #include "LuhorMovementComponent.h"
 
+#include "HittableComponent.h"
+#include "MeleeAttackerComponent.h"
+
+IComponentDependencies::Dependencies ULuhorMovementComponent::GetDependencies() const
+{
+	return Dependencies{
+		Dependency{ EComponentDependencyType::AnyOnActor, UHittableComponent::StaticClass(), "" },
+		Dependency{ EComponentDependencyType::AnyOnActorWithTag, UMeleeAttackerComponent::StaticClass(), "test" },
+	};
+}
+
 void ULuhorMovementComponent::DoCurvedLaunch(FVector Direction, FCurvedLaunchData Data)
 {
 	CurrentDirection = Direction;

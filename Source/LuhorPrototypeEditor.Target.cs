@@ -10,6 +10,5 @@ public class LuhorPrototypeEditorTarget : TargetRules
 		DefaultBuildSettings = BuildSettingsVersion.V5;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_5;
 		ExtraModuleNames.Add("LuhorPrototype");
-		ExtraModuleNames.Add("LuhorPrototypeEditor");
 	}
 }
