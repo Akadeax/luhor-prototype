@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "1.0",
+	"VersionName": "0.1",
 	"FriendlyName": "CompDep",
 	"Description": "Managing actor component dependencies in C++",
 	"Category": "Other",
@@ -17,8 +17,13 @@
 	"Modules": [
 		{
 			"Name": "CompDep",
-			"Type": "Editor",
+			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "CompDepEditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
 		}
 	]
 }

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
+#include "ComponentDependencies.h"
 #include "HittableComponent.generated.h"
 
 USTRUCT(BlueprintType)
@@ -24,9 +25,10 @@ enum class MakeInvulnerableMode : uint8
 };
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class LUHORPROTOTYPE_API UHittableComponent : public USceneComponent
+class LUHORPROTOTYPE_API UHittableComponent : public USceneComponent, public IComponentDependencies
 {
 	GENERATED_BODY()
+	COMPDEP_DECL()
 
 public:
 	UHittableComponent();

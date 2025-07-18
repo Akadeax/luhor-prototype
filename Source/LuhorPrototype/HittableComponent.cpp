@@ -5,6 +5,10 @@
 #include "Components/ShapeComponent.h"
 #include "Util/FDebugUtil.h"
 
+COMPDEP_IMPL_START(UHittableComponent)
+	COMPDEP_DEP_ChildRequired(UShapeComponent)
+COMPDEP_IMPL_END
+
 UHittableComponent::UHittableComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;

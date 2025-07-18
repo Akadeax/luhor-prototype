@@ -1,13 +1,8 @@
-#pragma once
-
-#include "Modules/ModuleManager.h"
+﻿#pragma once
 
 class FCompDepModule final : public IModuleInterface
 {
 public:
-	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;
-
-private:
-	TArray<FName> RegisteredClassLayoutNames{};
+	virtual void StartupModule() override {}
+	virtual void ShutdownModule() override {}
 };

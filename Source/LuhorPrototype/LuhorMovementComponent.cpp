@@ -5,13 +5,10 @@
 #include "HittableComponent.h"
 #include "MeleeAttackerComponent.h"
 
-IComponentDependencies::Dependencies ULuhorMovementComponent::GetDependencies() const
-{
-	return Dependencies{
-		Dependency{ EComponentDependencyType::AnyOnActor, UHittableComponent::StaticClass(), "" },
-		Dependency{ EComponentDependencyType::AnyOnActorWithTag, UMeleeAttackerComponent::StaticClass(), "test" },
-	};
-}
+COMPDEP_IMPL_START(ULuhorMovementComponent)
+	COMPDEP_DEP_AnyOnActorRequired(UHittableComponent)
+	COMPDEP_DEP_ChildWithTagOptional(UMeleeAttackerComponent, "my_tag")
+COMPDEP_IMPL_END
 
 void ULuhorMovementComponent::DoCurvedLaunch(FVector Direction, FCurvedLaunchData Data)
 {

@@ -14,7 +14,8 @@ public class LuhorPrototype : ModuleRules
 			"Engine",
 			"InputCore",
 			"EnhancedInput",
-			"CompDep",
+			"CompDep"
 		]);
+
 	}
 }

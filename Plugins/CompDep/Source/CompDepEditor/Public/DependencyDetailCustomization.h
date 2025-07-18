@@ -1,14 +1,18 @@
 ﻿#pragma once
 
-#include "ComponentDependencies.h"
 #include "IDetailCustomization.h"
 
 class FDependencyDetailCustomization final : public IDetailCustomization
 {
 public:
+	static void ReloadCustomizations();
+	static void RegisterCustomizations();
+	static void UnregisterCustomizations();
+	
 	static TSharedRef<IDetailCustomization> MakeInstance() { return MakeShared<FDependencyDetailCustomization>(); }
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
 
 private:
-	TPair<bool, FString> CheckDependencyFulfilled(const UActorComponent* SourceComponent, IComponentDependencies::Dependency Dependency);
+	
+	static TArray<FName> RegisteredClassLayoutNames;
 };
