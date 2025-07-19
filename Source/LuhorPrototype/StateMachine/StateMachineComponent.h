@@ -18,8 +18,10 @@ public:
 	UStateMachineComponent();
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	void ChangeState(FName StateName);
 	USMStateComponent* GetCurrentState();
+
+	UFUNCTION(BlueprintCallable)
+	bool TryChangeState(FName StateName);
 	
 protected:
 	virtual void BeginPlay() override;

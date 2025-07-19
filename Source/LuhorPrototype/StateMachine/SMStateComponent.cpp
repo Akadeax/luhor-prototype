@@ -18,17 +18,19 @@ void USMStateComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 
 void USMStateComponent::EnterState()
 {
+	IsStateActive = true;
 	OnEnterState();
 }
 
 void USMStateComponent::ExitState()
 {
+	IsStateActive = false;
 	OnExitState();
 }
 
-UStateMachineComponent* USMStateComponent::GetStateMachine() const
+bool USMStateComponent::CanEnterState_Implementation()
 {
-	return Cast<UStateMachineComponent>(GetOwner());
+	return true;
 }
 
 void USMStateComponent::OnEnterState_Implementation()
@@ -41,4 +43,23 @@ void USMStateComponent::OnUpdateState_Implementation()
 
 void USMStateComponent::OnExitState_Implementation()
 {
+}
+
+UStateMachineComponent* USMStateComponent::GetStateMachine() const
+{
+	return Cast<UStateMachineComponent>(GetAttachParent());
+}
+
+// Pass-by-const-ref disables blueprint inline syntax
+// ReSharper disable once CppPassValueParameterByConstReference
+UObject* USMStateComponent::GetChildComponentByClass(TSubclassOf<USceneComponent> Class) const
+{
+	TArray<USceneComponent*> children;
+	GetChildrenComponents(true, children);
+	for (USceneComponent* child : children)
+	{
+		if (child->IsA(Class)) return child;
+	}
+
+	return nullptr;
 }

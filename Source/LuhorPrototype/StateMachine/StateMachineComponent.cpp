@@ -3,6 +3,7 @@
 #include "StateMachineComponent.h"
 
 #include "SMStateComponent.h"
+#include "Dataflow/DataflowSelection.h"
 
 COMPDEP_IMPL_START(UStateMachineComponent)
 	COMPDEP_DEP_ChildRequired(USMStateComponent)
@@ -28,7 +29,7 @@ void UStateMachineComponent::BeginPlay()
 		}
 	}
 
-	ChangeState(StartingStateName);	
+	checkf(TryChangeState(StartingStateName), TEXT("Invalid starting state!"));	
 }
 
 void UStateMachineComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -36,9 +37,11 @@ void UStateMachineComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
-void UStateMachineComponent::ChangeState(FName StateName)
+bool UStateMachineComponent::TryChangeState(FName StateName)
 {
 	checkf(States.Contains(StateName), TEXT("Trying to enter invalid state!"));
+
+	if (!States[StateName]->CanEnterState()) return false;
 	
 	if (CurrentStateName != NAME_None)
 	{
@@ -46,6 +49,8 @@ void UStateMachineComponent::ChangeState(FName StateName)
 	}
 	CurrentStateName = StateName;
 	GetCurrentState()->EnterState();
+
+	return true;
 }
 
 USMStateComponent* UStateMachineComponent::GetCurrentState()

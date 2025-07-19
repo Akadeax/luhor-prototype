@@ -9,3 +9,10 @@ ALuhorCharacter::ALuhorCharacter(const FObjectInitializer& ObjectInitializer)
 {
 	LuhorCharacterMovement = Cast<ULuhorMovementComponent>(GetCharacterMovement());
 }
+
+void ALuhorCharacter::SetControlRotationFromInputDir(FVector InputDir, float OffsetDeg) const
+{
+	const double yaw{ FMath::Atan2(-InputDir.Y, InputDir.X) };
+	const FRotator rot{ 0.f, FMath::RadiansToDegrees(yaw) + OffsetDeg, 0.f };
+	GetController()->SetControlRotation(rot);
+}

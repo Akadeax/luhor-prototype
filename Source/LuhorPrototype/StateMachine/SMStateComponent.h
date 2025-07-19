@@ -20,11 +20,16 @@ public:
 	void EnterState();
 	void ExitState();
 	
+	UFUNCTION(BlueprintNativeEvent)
+	bool CanEnterState();
+	
 protected:
 	UFUNCTION(BlueprintNativeEvent)
 	void OnEnterState();
+	
 	UFUNCTION(BlueprintNativeEvent)
 	void OnUpdateState();
+	
 	UFUNCTION(BlueprintNativeEvent)
 	void OnExitState();
 
@@ -33,4 +38,7 @@ protected:
 
 	UFUNCTION(BlueprintPure)
 	UStateMachineComponent* GetStateMachine() const;
+
+	UFUNCTION(BlueprintPure, meta=(DeterminesOutputType="Class"))
+	UObject* GetChildComponentByClass(TSubclassOf<USceneComponent> Class) const;
 };

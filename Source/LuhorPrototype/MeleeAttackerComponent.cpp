@@ -19,7 +19,7 @@ bool UMeleeAttackerComponent::TryAttack()
 {
 	if (CurrentAttackState != EMeleeAttackState::None)
 	{
-		if (!AttackQueued)
+		if (!AttackQueued && CurrentChainIndex != MeleeAttackChain->Attacks.Num() - 1)
 		{
 			AttackQueued = true;
 		}
@@ -130,7 +130,7 @@ void UMeleeAttackerComponent::EndAttack()
 {
 	SetMeleeAttackState(EMeleeAttackState::None);
 
-	if (CurrentChainIndex + 1 >= MeleeAttackChain->Attacks.Num())
+	if (CurrentChainIndex >= MeleeAttackChain->Attacks.Num() - 1)
 	{
 		AttackQueued = false;
 		EndChainLeniency();
@@ -142,9 +142,9 @@ void UMeleeAttackerComponent::EndAttack()
 		);
 	}
 
-	if (AttackQueued) TryAttack();
-	
 	OnMeleeAttackDone.Broadcast();
+	
+	if (AttackQueued) TryAttack();
 }
 
 void UMeleeAttackerComponent::EndChainLeniency()

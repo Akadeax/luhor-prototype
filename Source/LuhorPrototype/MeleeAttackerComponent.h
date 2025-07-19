@@ -37,6 +37,9 @@ public:
 	
 	UFUNCTION(BlueprintCallable)
 	bool TryAttack();
+
+	UFUNCTION(BlueprintCallable)
+	bool IsAttackQueued() const { return AttackQueued; }
 	
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)

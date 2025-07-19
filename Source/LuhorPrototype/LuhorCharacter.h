@@ -15,6 +15,9 @@ class LUHORPROTOTYPE_API ALuhorCharacter : public ACharacter
 public:
 	explicit ALuhorCharacter(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
+	UFUNCTION(BlueprintCallable)
+	void SetControlRotationFromInputDir(FVector InputDir, float OffsetDeg) const;
+	
 protected:
 	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<ULuhorMovementComponent> LuhorCharacterMovement;
