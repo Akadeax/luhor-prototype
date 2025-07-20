@@ -7,6 +7,8 @@
 #include "ComponentDependencies.h"
 #include "HittableComponent.generated.h"
 
+class UHealthComponent;
+
 USTRUCT(BlueprintType)
 struct FHittableHitData
 {
@@ -43,7 +45,6 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInvulnerableEnd);
 	UPROPERTY(BlueprintAssignable) FOnInvulnerableEnd OnInvulnerableEnd;
 
-
 	void Hit(FHittableHitData HitData);
 
 	UFUNCTION(BlueprintCallable)
@@ -58,7 +59,8 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
 	float InvulnerabilityOnHitTime{ 0.2f };
 
-	
 	UPROPERTY() UShapeComponent* HitBox{};
+	UPROPERTY() UHealthComponent* HealthComponent{};
+	
 	float CurrentInvulnerabilityTimeLeft{};
 };

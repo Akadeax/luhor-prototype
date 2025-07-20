@@ -18,9 +18,10 @@ enum class EMeleeAttackState : uint8
 
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class LUHORPROTOTYPE_API UMeleeAttackerComponent : public USceneComponent
+class LUHORPROTOTYPE_API UMeleeAttackerComponent : public USceneComponent, public IComponentDependencies
 {
 	GENERATED_BODY()
+	COMPDEP_DECL()
 
 public:
 	UMeleeAttackerComponent();
@@ -40,6 +41,8 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	bool IsAttackQueued() const { return AttackQueued; }
+
+	void CancelAttack();
 	
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
@@ -48,11 +51,8 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	TObjectPtr<UMeleeAttackChain> MeleeAttackChain;
 
-	// Required Components (Error if not present)
 	UPROPERTY() TObjectPtr<USkeletalMeshComponent> MainSkeletalMesh{};
 	UPROPERTY() TObjectPtr<UShapeComponent> ContactCollision{};
-
-	// Optional Components
 	UPROPERTY() TObjectPtr<ULuhorMovementComponent> MovementComponent{};
 
 	EMeleeAttackState CurrentAttackState{ EMeleeAttackState::None };

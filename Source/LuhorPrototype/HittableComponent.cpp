@@ -1,12 +1,15 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "HittableComponent.h"
+
+#include "HealthComponent.h"
 #include "Util/ComponentUtil.h"
 #include "Components/ShapeComponent.h"
 #include "Util/FDebugUtil.h"
 
 COMPDEP_IMPL_START(UHittableComponent)
 	COMPDEP_DEP_ChildRequired(UShapeComponent)
+	COMPDEP_DEP_AnyOnActorOptional(UHealthComponent)
 COMPDEP_IMPL_END
 
 UHittableComponent::UHittableComponent()
@@ -26,6 +29,8 @@ void UHittableComponent::BeginPlay()
 	HitBox->SetCollisionObjectType(HITBOX_CHANNEL);
 	HitBox->SetCollisionResponseToChannel(HITBOX_CHANNEL, ECR_Ignore);
 	HitBox->SetCollisionResponseToChannel(ATTACKBOX_CHANNEL, ECR_Overlap);
+
+	HealthComponent = FComponentUtil::GetFirstComponentOfClass<UHealthComponent>(GetOwner());
 }
 
 void UHittableComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -44,6 +49,11 @@ void UHittableComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 void UHittableComponent::Hit(FHittableHitData HitData)
 {
 	OnHit.Broadcast(HitData);
+	MakeInvulnerable(InvulnerabilityOnHitTime);
+
+	if (!HealthComponent) return;
+
+	HealthComponent->Damage(HitData.Damage);
 }
 
 void UHittableComponent::MakeInvulnerable(float Time, MakeInvulnerableMode Mode)

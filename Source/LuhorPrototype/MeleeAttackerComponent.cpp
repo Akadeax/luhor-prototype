@@ -8,6 +8,11 @@
 #include "Components/ShapeComponent.h"
 #include "Util/FDebugUtil.h"
 
+COMPDEP_IMPL_START(UMeleeAttackerComponent)
+	COMPDEP_DEP_AnyOnActorWithTagRequired(USkeletalMeshComponent, MainSkeletalMeshComponentTag)
+	COMPDEP_DEP_ChildRequired(UShapeComponent)
+	COMPDEP_DEP_AnyOnActorOptional(ULuhorMovementComponent)
+COMPDEP_IMPL_END
 
 UMeleeAttackerComponent::UMeleeAttackerComponent()
 {
@@ -36,6 +41,19 @@ bool UMeleeAttackerComponent::TryAttack()
 	AttackQueued = false;
 	DoWindup();
 	return true;
+}
+
+void UMeleeAttackerComponent::CancelAttack()
+{
+	for (FMeleeAttackData& data : MeleeAttackChain->Attacks)
+	{
+		MainSkeletalMesh->GetAnimInstance()->Montage_Stop(0.1f, data.Montage);
+	}
+
+	AttackQueued = false;
+	CurrentChainIndex = 0;
+	CurrentAttackState = EMeleeAttackState::None;
+	GetWorld()->GetTimerManager().ClearTimer(ChainLeniencyTimer);
 }
 
 void UMeleeAttackerComponent::BeginPlay()

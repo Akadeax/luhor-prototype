@@ -25,10 +25,10 @@ struct FComponentDependency
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EComponentDependencyPosition Position;
+	EComponentDependencyPosition Position{ EComponentDependencyPosition::AnyOnActor };
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TSubclassOf<UActorComponent> Class;
+	TSubclassOf<UActorComponent> Class{ nullptr };
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName Meta{};
