@@ -5,11 +5,14 @@
 #include "HealthComponent.h"
 #include "Util/ComponentUtil.h"
 #include "Components/ShapeComponent.h"
+#include "LuhorMovementComponent.h"
 #include "Util/FDebugUtil.h"
+#include "DrawDebugHelpers.h"
 
 COMPDEP_IMPL_START(UHittableComponent)
 	COMPDEP_DEP_ChildRequired(UShapeComponent)
 	COMPDEP_DEP_AnyOnActorOptional(UHealthComponent)
+	COMPDEP_DEP_AnyOnActorOptional(ULuhorMovementComponent)
 COMPDEP_IMPL_END
 
 UHittableComponent::UHittableComponent()
@@ -31,6 +34,7 @@ void UHittableComponent::BeginPlay()
 	HitBox->SetCollisionResponseToChannel(ATTACKBOX_CHANNEL, ECR_Overlap);
 
 	HealthComponent = FComponentUtil::GetFirstComponentOfClass<UHealthComponent>(GetOwner());
+	MovementComponent = FComponentUtil::GetFirstComponentOfClass<ULuhorMovementComponent>(GetOwner());
 }
 
 void UHittableComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -51,9 +55,17 @@ void UHittableComponent::Hit(FHittableHitData HitData)
 	OnHit.Broadcast(HitData);
 	MakeInvulnerable(InvulnerabilityOnHitTime);
 
-	if (!HealthComponent) return;
-
-	HealthComponent->Damage(HitData.Damage);
+	if (HealthComponent)
+	{
+		HealthComponent->Damage(HitData.Damage);
+	}
+	if (MovementComponent)
+	{
+		FVector dir{ HitData.Source->GetActorForwardVector() };
+		dir.Z = 0.f;
+		
+		MovementComponent->DoCurvedLaunch(dir, LaunchOnHitData);
+	}
 }
 
 void UHittableComponent::MakeInvulnerable(float Time, MakeInvulnerableMode Mode)

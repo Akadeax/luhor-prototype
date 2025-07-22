@@ -192,7 +192,7 @@ void UMeleeAttackerComponent::OnContactCollisionBeginOverlap(
 	if (!hittable) return;
 
 	const FMeleeAttackData& data{ GetCurrentAttack() };
-	hittable->Hit({ data.Damage });
+	hittable->Hit({ data.Damage, GetOwner() });
 }
 
 void UMeleeAttackerComponent::SetMeleeAttackState(EMeleeAttackState NewState)

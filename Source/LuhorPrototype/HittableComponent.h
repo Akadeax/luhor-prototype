@@ -5,8 +5,10 @@
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
 #include "ComponentDependencies.h"
+#include "LuhorMovementComponent.h"
 #include "HittableComponent.generated.h"
 
+class ULuhorMovementComponent;
 class UHealthComponent;
 
 USTRUCT(BlueprintType)
@@ -16,6 +18,9 @@ struct FHittableHitData
 	
 	UPROPERTY(BlueprintReadWrite)
 	float Damage{};
+	
+	UPROPERTY(BlueprintReadWrite)
+	AActor* Source{};
 };
 
 UENUM(BlueprintType)
@@ -59,8 +64,15 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
 	float InvulnerabilityOnHitTime{ 0.2f };
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
+	bool LaunchOnHit{ true };
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
+	FCurvedLaunchData LaunchOnHitData{};
+
 	UPROPERTY() UShapeComponent* HitBox{};
 	UPROPERTY() UHealthComponent* HealthComponent{};
+	UPROPERTY() ULuhorMovementComponent* MovementComponent{};
 	
 	float CurrentInvulnerabilityTimeLeft{};
 };

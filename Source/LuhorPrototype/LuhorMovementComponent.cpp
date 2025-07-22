@@ -38,7 +38,8 @@ void ULuhorMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType
 		CurrentLaunchData.ForceMultiplierCurve->GetFloatValue(currentTimeProgress01) :
 		1.f - currentTimeProgress01 // Budget linear curve; inverted so force is back to 1 to 0
 	};
-	
+
+	// TODO: Weird launches?
 	const float currentForce{
 		curveFactor *
 		CurrentLaunchData.Force *
