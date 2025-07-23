@@ -46,7 +46,7 @@ void ULuhorMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType
 		STATIC_LAUNCH_FORCE_MULTIPLIER
 	};
 
-	AddForce(currentForce * CurrentDirection);
+	Velocity = currentForce * CurrentDirection;
 
 	if (CurrentLaunchTimeLeft <= 0.f)
 	{

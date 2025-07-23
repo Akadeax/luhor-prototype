@@ -49,5 +49,5 @@ private:
 	
 	float CurrentLaunchTimeLeft{};
 
-	static constexpr float STATIC_LAUNCH_FORCE_MULTIPLIER{ 100000.f };
+	static constexpr float STATIC_LAUNCH_FORCE_MULTIPLIER{ 100.f };
 };
