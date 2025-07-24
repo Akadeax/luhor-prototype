@@ -42,6 +42,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool IsAttackQueued() const { return AttackQueued; }
 
+	UFUNCTION(BlueprintCallable)
 	void CancelAttack();
 	
 protected:

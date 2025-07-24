@@ -37,10 +37,14 @@ void UHittableComponent::BeginPlay()
 	MovementComponent = FComponentUtil::GetFirstComponentOfClass<ULuhorMovementComponent>(GetOwner());
 }
 
-void UHittableComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+void UHittableComponent::HitStun()
 {
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	CurrentHitStunTimeLeft = HitStunTime;
+	OnHitStun.Broadcast();
+}
 
+void UHittableComponent::TickInvulnerability(float DeltaTime)
+{
 	if (CurrentInvulnerabilityTimeLeft <= 0.f) return;
 	
 	CurrentInvulnerabilityTimeLeft -= DeltaTime;
@@ -50,11 +54,32 @@ void UHittableComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	}
 }
 
+void UHittableComponent::TickHitStun(float DeltaTime)
+{
+	if (CurrentHitStunTimeLeft <= 0.f) return;
+	
+	CurrentHitStunTimeLeft -= DeltaTime;
+	if (CurrentHitStunTimeLeft <= 0.f)
+	{
+		OnHitStunEnd.Broadcast();
+	}
+}
+
+void UHittableComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	TickInvulnerability(DeltaTime);
+	TickHitStun(DeltaTime);
+}
+
 void UHittableComponent::Hit(FHittableHitData HitData)
 {
 	OnHit.Broadcast(HitData);
+	
 	MakeInvulnerable(InvulnerabilityOnHitTime);
-
+	HitStun();
+	
 	if (HealthComponent)
 	{
 		HealthComponent->Damage(HitData.Damage);

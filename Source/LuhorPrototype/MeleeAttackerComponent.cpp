@@ -50,6 +50,7 @@ void UMeleeAttackerComponent::CancelAttack()
 		MainSkeletalMesh->GetAnimInstance()->Montage_Stop(0.1f, data.Montage);
 	}
 
+	GetWorld()->GetTimerManager().ClearTimer(CurrentAttackStateTimer);
 	AttackQueued = false;
 	CurrentChainIndex = 0;
 	CurrentAttackState = EMeleeAttackState::None;

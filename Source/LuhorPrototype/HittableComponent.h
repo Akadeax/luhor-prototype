@@ -50,6 +50,13 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInvulnerableEnd);
 	UPROPERTY(BlueprintAssignable) FOnInvulnerableEnd OnInvulnerableEnd;
 
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnHitStun);
+	UPROPERTY(BlueprintAssignable) FOnHitStun OnHitStun;
+
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnHitStunEnd);
+	UPROPERTY(BlueprintAssignable) FOnHitStunEnd OnHitStunEnd;
+
+	
 	void Hit(FHittableHitData HitData);
 
 	UFUNCTION(BlueprintCallable)
@@ -57,12 +64,18 @@ public:
 	
 	UFUNCTION(BlueprintCallable)
 	bool IsInvulnerable() const { return CurrentInvulnerabilityTimeLeft > 0.f; }
+
+	UFUNCTION(BlueprintCallable)
+	bool IsHitStunned() const { return CurrentHitStunTimeLeft > 0.f; }	
 	
 protected:
 	virtual void BeginPlay() override;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
 	float InvulnerabilityOnHitTime{ 0.2f };
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
+	float HitStunTime{ 0.2f };
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
 	bool LaunchOnHit{ true };
@@ -75,4 +88,10 @@ protected:
 	UPROPERTY() ULuhorMovementComponent* MovementComponent{};
 	
 	float CurrentInvulnerabilityTimeLeft{};
+	float CurrentHitStunTimeLeft{};
+
+	void HitStun();
+
+	void TickInvulnerability(float DeltaTime);
+	void TickHitStun(float DeltaTime);
 };
