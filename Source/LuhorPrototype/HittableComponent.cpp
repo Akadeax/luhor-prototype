@@ -75,6 +75,8 @@ void UHittableComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 
 void UHittableComponent::Hit(FHittableHitData HitData)
 {
+	if (IsInvulnerable()) return;
+	
 	OnHit.Broadcast(HitData);
 	
 	MakeInvulnerable(InvulnerabilityOnHitTime);

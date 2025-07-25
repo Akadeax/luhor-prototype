@@ -65,8 +65,12 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool IsInvulnerable() const { return CurrentInvulnerabilityTimeLeft > 0.f; }
 
+	
 	UFUNCTION(BlueprintCallable)
 	bool IsHitStunned() const { return CurrentHitStunTimeLeft > 0.f; }	
+
+	UFUNCTION(BlueprintCallable)
+	float GetHitStunTimeLeft() const { return CurrentHitStunTimeLeft; }
 	
 protected:
 	virtual void BeginPlay() override;

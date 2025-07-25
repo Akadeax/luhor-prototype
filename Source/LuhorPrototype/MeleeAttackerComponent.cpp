@@ -50,10 +50,13 @@ void UMeleeAttackerComponent::CancelAttack()
 		MainSkeletalMesh->GetAnimInstance()->Montage_Stop(0.1f, data.Montage);
 	}
 
-	GetWorld()->GetTimerManager().ClearTimer(CurrentAttackStateTimer);
 	AttackQueued = false;
 	CurrentChainIndex = 0;
 	CurrentAttackState = EMeleeAttackState::None;
+
+	DisableContactCollision();
+	
+	GetWorld()->GetTimerManager().ClearTimer(CurrentAttackStateTimer);
 	GetWorld()->GetTimerManager().ClearTimer(ChainLeniencyTimer);
 }
 
@@ -153,15 +156,18 @@ void UMeleeAttackerComponent::EndAttack()
 	{
 		AttackQueued = false;
 		EndChainLeniency();
+		
+		OnMeleeAttackDone.Broadcast();
+		OnMeleeAttackChainDone.Broadcast();
 	}
 	else
 	{
 		GetWorld()->GetTimerManager().SetTimer(
 			ChainLeniencyTimer, this, &ThisClass::EndChainLeniency, MeleeAttackChain->ChainLeniencyTime
 		);
-	}
 
-	OnMeleeAttackDone.Broadcast();
+		OnMeleeAttackDone.Broadcast();
+	}
 	
 	if (AttackQueued) TryAttack();
 }
