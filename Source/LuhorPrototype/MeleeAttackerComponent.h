@@ -9,6 +9,7 @@
 
 class ULuhorMovementComponent;
 class UCapsuleComponent;
+class UFactionAssociation;
 
 UENUM(BlueprintType)
 enum class EMeleeAttackState : uint8
@@ -36,6 +37,9 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMeleeAttackChainDone);
 	UPROPERTY(BlueprintAssignable) FOnMeleeAttackChainDone OnMeleeAttackChainDone;
 
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMeleeAttackCancelled);
+	UPROPERTY(BlueprintAssignable) FOnMeleeAttackCancelled OnMeleeAttackCancelled;
+
 	
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMeleeAttackStateChanged, EMeleeAttackState, NewState);
 	UPROPERTY(BlueprintAssignable) FOnMeleeAttackStateChanged OnMeleeAttackStateChanged;
@@ -50,6 +54,10 @@ public:
 	void CancelAttack();
 	
 protected:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	UFactionAssociation* Faction{};
+	
+	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	FName MainSkeletalMeshComponentTag{ "main_skeletal_mesh" };
 	

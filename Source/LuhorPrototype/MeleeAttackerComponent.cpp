@@ -45,6 +45,8 @@ bool UMeleeAttackerComponent::TryAttack()
 
 void UMeleeAttackerComponent::CancelAttack()
 {
+	if (CurrentAttackState == EMeleeAttackState::None) return;
+	
 	for (FMeleeAttackData& data : MeleeAttackChain->Attacks)
 	{
 		MainSkeletalMesh->GetAnimInstance()->Montage_Stop(0.1f, data.Montage);
@@ -58,6 +60,8 @@ void UMeleeAttackerComponent::CancelAttack()
 	
 	GetWorld()->GetTimerManager().ClearTimer(CurrentAttackStateTimer);
 	GetWorld()->GetTimerManager().ClearTimer(ChainLeniencyTimer);
+	
+	OnMeleeAttackCancelled.Broadcast();
 }
 
 void UMeleeAttackerComponent::BeginPlay()
@@ -199,7 +203,7 @@ void UMeleeAttackerComponent::OnContactCollisionBeginOverlap(
 	if (!hittable) return;
 
 	const FMeleeAttackData& data{ GetCurrentAttack() };
-	hittable->Hit({ data.Damage, GetOwner() });
+	hittable->Hit({ data.Damage, GetOwner(), Faction });
 }
 
 void UMeleeAttackerComponent::SetMeleeAttackState(EMeleeAttackState NewState)

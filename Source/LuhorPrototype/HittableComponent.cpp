@@ -73,8 +73,9 @@ void UHittableComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	TickHitStun(DeltaTime);
 }
 
-void UHittableComponent::Hit(FHittableHitData HitData)
+void UHittableComponent::Hit(const FHittableHitData& HitData)
 {
+	if (HitData.SourceFaction == Faction) return;
 	if (IsInvulnerable()) return;
 	
 	OnHit.Broadcast(HitData);

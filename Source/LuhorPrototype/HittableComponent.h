@@ -10,6 +10,7 @@
 
 class ULuhorMovementComponent;
 class UHealthComponent;
+class UFactionAssociation;
 
 USTRUCT(BlueprintType)
 struct FHittableHitData
@@ -21,6 +22,9 @@ struct FHittableHitData
 	
 	UPROPERTY(BlueprintReadWrite)
 	AActor* Source{};
+
+	UPROPERTY(BlueprintReadWrite)
+	UFactionAssociation* SourceFaction{};
 };
 
 UENUM(BlueprintType)
@@ -57,7 +61,7 @@ public:
 	UPROPERTY(BlueprintAssignable) FOnHitStunEnd OnHitStunEnd;
 
 	
-	void Hit(FHittableHitData HitData);
+	void Hit(const FHittableHitData& HitData);
 
 	UFUNCTION(BlueprintCallable)
 	void MakeInvulnerable(float Time, MakeInvulnerableMode Mode = MakeInvulnerableMode::SetTimeIfLonger);
@@ -75,6 +79,9 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
+	UFactionAssociation* Faction{};
+	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
 	float InvulnerabilityOnHitTime{ 0.2f };
 
