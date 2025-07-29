@@ -13,15 +13,11 @@ class LUHORPROTOTYPE_API UHeadDisplayWidgetComponent : public UWidgetComponent
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this component's properties
 	UHeadDisplayWidgetComponent();
 
 protected:
-	// Called when the game starts
 	virtual void BeginPlay() override;
 
-public:
-	// Called every frame
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType,
-	                           FActorComponentTickFunction* ThisTickFunction) override;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	TMap<FName, FTexture*> HeadDisplayTextures{};
 };
