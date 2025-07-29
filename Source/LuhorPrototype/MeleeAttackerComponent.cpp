@@ -204,6 +204,7 @@ void UMeleeAttackerComponent::OnContactCollisionBeginOverlap(
 
 	const FMeleeAttackData& data{ GetCurrentAttack() };
 	hittable->Hit({ data.Damage, GetOwner(), Faction });
+	OnMeleeAttackHit.Broadcast(data.Damage);
 }
 
 void UMeleeAttackerComponent::SetMeleeAttackState(EMeleeAttackState NewState)

@@ -25,10 +25,10 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	UFUNCTION(BLueprintCallable)
-	void Damage(float Amount);
+	virtual void Damage(float Amount);
 
 	UFUNCTION(BLueprintCallable)
-	void Heal(float Amount);
+	virtual void Heal(float Amount);
 
 	UFUNCTION(BLueprintCallable)
 	float GetMaxHealth() const { return MaxHealth; }

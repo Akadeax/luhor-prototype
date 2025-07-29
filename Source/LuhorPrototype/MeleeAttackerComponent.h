@@ -40,6 +40,9 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMeleeAttackCancelled);
 	UPROPERTY(BlueprintAssignable) FOnMeleeAttackCancelled OnMeleeAttackCancelled;
 
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMeleeAttackHit,float ,DamageAmount);
+	UPROPERTY(BlueprintAssignable) FOnMeleeAttackHit OnMeleeAttackHit;
+
 	
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMeleeAttackStateChanged, EMeleeAttackState, NewState);
 	UPROPERTY(BlueprintAssignable) FOnMeleeAttackStateChanged OnMeleeAttackStateChanged;
