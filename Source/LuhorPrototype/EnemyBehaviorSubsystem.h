@@ -6,6 +6,8 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "EnemyBehaviorSubsystem.generated.h"
 
+class UBlackboardComponent;
+class ALuhorPlayerCharacter;
 class ALuhorEnemyCharacter;
 
 UCLASS()
@@ -27,7 +29,7 @@ public:
 
 private:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-	void RegisterInitialEnemies();
+	void RegisterInitial();
 	
 	void OnActorSpawned(AActor* SpawnedActor);
 	void OnActorDestroyed(AActor* DestroyedActor);
@@ -35,10 +37,16 @@ private:
 	void AddEnemyTracking(ALuhorEnemyCharacter* Enemy);
 	void RemoveEnemyTracking(ALuhorEnemyCharacter* Enemy);
 
+	void UpdateEngagedEnemies();
+	UBlackboardComponent* GetBlackboard(const ACharacter* Char);
+	
 	UFUNCTION() void IncrementOngoingMeleeAttacks();
 	UFUNCTION() void DecrementOngoingMeleeAttacks();
 
 	TArray<ALuhorEnemyCharacter*> Enemies;
+	UPROPERTY() ALuhorPlayerCharacter* Player{ nullptr };
 
 	int OngoingEnemyMeleeAttacks{ 0 };
+
+	int DesiredEngagedCount{ 2 };
 };

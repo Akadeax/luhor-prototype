@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Collections.Generic;
 using UnrealBuildTool;
 
 public class LuhorPrototype : ModuleRules
@@ -8,14 +9,15 @@ public class LuhorPrototype : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange([
+		PublicDependencyModuleNames.AddRange(new List<string> {
 			"Core",
 			"CoreUObject",
 			"Engine",
 			"InputCore",
 			"EnhancedInput",
-			"CompDep"
-		]);
+			"CompDep",
+			"AIModule",
+		});
 
 	}
 }
