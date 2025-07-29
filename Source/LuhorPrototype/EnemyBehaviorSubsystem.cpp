@@ -99,10 +99,14 @@ void UEnemyBehaviorSubsystem::UpdateEngagedEnemies()
 		const UBlackboardComponent* blackboard{ GetBlackboard(inner) };
 		const bool engaged{ blackboard->GetValueAsBool("Engaged") };
 
-		if (engaged) continue;
-
-		++engagedCount;
-		unengagedEnemies.Add(inner);
+		if (engaged)
+		{
+			++engagedCount;
+		}
+		else
+		{
+			unengagedEnemies.Add(inner);
+		}
 	}
 
 	int amountToEngage{ FMath::Clamp(DesiredEngagedCount - engagedCount, 0, DesiredEngagedCount) };
@@ -114,9 +118,10 @@ void UEnemyBehaviorSubsystem::UpdateEngagedEnemies()
 		return aDist < bDist;
 	});
 
-	for (const ALuhorEnemyCharacter* unengaged : unengagedEnemies)
+	for (int i{}; i < unengagedEnemies.Num() && amountToEngage > 0; ++i)
 	{
-		DrawDebugString(GetWorld(), unengaged->GetActorLocation(), TEXT("Test"), nullptr, FColor::White, 1.f);
+		--amountToEngage;
+		GetBlackboard(unengagedEnemies[i])->SetValueAsBool("Engaged", true);
 	}
 
 }
