@@ -18,6 +18,7 @@ public:
 	{
 		PrimaryComponentTick.bCanEverTick = true;
 	};
+	virtual void BeginPlay() override;
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLastStandStarted);
 	UPROPERTY(BlueprintAssignable) FOnLastStandStarted OnLastStandStarted;
 
@@ -58,6 +59,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia")
 	float PassiveAmbrosiaDrain{1.25f};
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia")
+	float StartingAmbrosia{50};
+	
 
 	bool InLastStand{false};
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia" , meta = (ToolTip = "How much ambrosia the player needs to gather to get out of the last stand mode"))

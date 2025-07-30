@@ -4,7 +4,11 @@
 #include "AmbrosiaHealthComponent.h"
 
 
-
+void UAmbrosiaHealthComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	CurrentHealth = StartingAmbrosia;
+}
 
 void UAmbrosiaHealthComponent::TickComponent(float DeltaTime, ELevelTick TickType,
                                              FActorComponentTickFunction* ThisTickFunction)
