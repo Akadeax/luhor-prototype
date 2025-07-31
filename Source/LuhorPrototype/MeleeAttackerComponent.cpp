@@ -14,6 +14,36 @@ COMPDEP_IMPL_START(UMeleeAttackerComponent)
 	COMPDEP_DEP_ChildRequired(UShapeComponent)
 COMPDEP_IMPL_END
 
+void UMeleeAttackerComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	FDebugUtil::QuitCheckf(MeleeAttackChain, TEXT("No attack chain assigned to %s on %s!"), *GetName(), *GetOwner()->GetName());
+	for (const FMeleeAttackData& data : MeleeAttackChain->Attacks)
+	{
+		FDebugUtil::QuitCheckf(data.Montage, TEXT("Melee Attack Chain %s doesn't have a montage assigned on all attacks!"), *MeleeAttackChain.GetName());
+	}
+	
+	MainSkeletalMesh = GetOwner()->FindComponentByTag<USkeletalMeshComponent>(MainSkeletalMeshComponentTag);
+	FDebugUtil::QuitCheckf(MainSkeletalMesh, TEXT("Actor %s has no skeletal mesh with tag %s!"), *GetOwner()->GetName(), *MainSkeletalMeshComponentTag.ToString());
+
+	ContactCollision = FComponentUtil::GetChildComponentOfClass<UShapeComponent>(this);
+	FDebugUtil::QuitCheckf(ContactCollision, TEXT("Component %s on actor %s has no shape component as a child!"), *GetName(), *GetOwner()->GetName());
+
+	// Initialize contact collision
+	ContactCollision->SetGenerateOverlapEvents(true);
+	ContactCollision->OnComponentBeginOverlap.AddDynamic(this, &ThisClass::OnContactCollisionBeginOverlap);
+	BaseCollisionTransform = ContactCollision->GetComponentTransform();
+	DisableContactCollision();
+
+	constexpr ECollisionChannel HITBOX_CHANNEL{ ECC_GameTraceChannel1 };
+	constexpr ECollisionChannel ATTACKBOX_CHANNEL{ ECC_GameTraceChannel2 };
+	ContactCollision->SetCollisionObjectType(ATTACKBOX_CHANNEL);
+	ContactCollision->SetCollisionResponseToChannel(HITBOX_CHANNEL, ECR_Overlap);
+	ContactCollision->SetCollisionResponseToChannel(ATTACKBOX_CHANNEL, ECR_Ignore);
+	MovementComponent = FComponentUtil::GetFirstComponentOfClass<ULuhorMovementComponent>(GetOwner());
+}
+
 bool UMeleeAttackerComponent::TryAttack()
 {
 	if (CurrentAttackState != EAttackState::None)
@@ -58,35 +88,7 @@ void UMeleeAttackerComponent::CancelAttack()
 	OnMeleeAttackCancelled.Broadcast();
 }
 
-void UMeleeAttackerComponent::BeginPlay()
-{
-	Super::BeginPlay();
 
-	FDebugUtil::QuitCheckf(MeleeAttackChain, TEXT("No attack chain assigned to %s on %s!"), *GetName(), *GetOwner()->GetName());
-	for (const FMeleeAttackData& data : MeleeAttackChain->Attacks)
-	{
-		FDebugUtil::QuitCheckf(data.Montage, TEXT("Melee Attack Chain %s doesn't have a montage assigned on all attacks!"), *MeleeAttackChain.GetName());
-	}
-	
-	MainSkeletalMesh = GetOwner()->FindComponentByTag<USkeletalMeshComponent>(MainSkeletalMeshComponentTag);
-	FDebugUtil::QuitCheckf(MainSkeletalMesh, TEXT("Actor %s has no skeletal mesh with tag %s!"), *GetOwner()->GetName(), *MainSkeletalMeshComponentTag.ToString());
-
-	ContactCollision = FComponentUtil::GetChildComponentOfClass<UShapeComponent>(this);
-	FDebugUtil::QuitCheckf(ContactCollision, TEXT("Component %s on actor %s has no shape component as a child!"), *GetName(), *GetOwner()->GetName());
-
-	// Initialize contact collision
-	ContactCollision->SetGenerateOverlapEvents(true);
-	ContactCollision->OnComponentBeginOverlap.AddDynamic(this, &ThisClass::OnContactCollisionBeginOverlap);
-	DisableContactCollision();
-
-	constexpr ECollisionChannel HITBOX_CHANNEL{ ECC_GameTraceChannel1 };
-	constexpr ECollisionChannel ATTACKBOX_CHANNEL{ ECC_GameTraceChannel2 };
-	ContactCollision->SetCollisionObjectType(ATTACKBOX_CHANNEL);
-	ContactCollision->SetCollisionResponseToChannel(HITBOX_CHANNEL, ECR_Overlap);
-	ContactCollision->SetCollisionResponseToChannel(ATTACKBOX_CHANNEL, ECR_Ignore);
-
-	MovementComponent = FComponentUtil::GetFirstComponentOfClass<ULuhorMovementComponent>(GetOwner());
-}
 
 void UMeleeAttackerComponent::DoWindup()
 {
@@ -113,7 +115,7 @@ void UMeleeAttackerComponent::DoContact()
 {
 	SetAttackState(EAttackState::Contact);
 	const FMeleeAttackData& data{ GetCurrentAttack() };
-
+	
 	EnableContactCollision();
 
 	if (MovementComponent)
@@ -175,8 +177,15 @@ void UMeleeAttackerComponent::EndChainLeniency()
 	CurrentChainIndex = 0;
 }
 
-void UMeleeAttackerComponent::EnableContactCollision()
+void UMeleeAttackerComponent::EnableContactCollision(FMeleeAttackData data)
 {
+	if (data.HitBoxTransform.Equals(FTransform::Identity))
+	{
+		ContactCollision->SetRelativeTransform(BaseCollisionTransform);
+	} else
+	{
+		ContactCollision->SetRelativeTransform(data.HitBoxTransform);
+	}
 	ContactCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 }
 

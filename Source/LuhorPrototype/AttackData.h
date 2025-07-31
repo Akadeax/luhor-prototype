@@ -24,7 +24,8 @@ struct LUHORPROTOTYPE_API FMeleeAttackData
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	float Damage{ 5.f };
-	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	FTransform HitBoxTransform{};	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FCurvedLaunchData CurvedLaunchData{};
 
