@@ -60,7 +60,7 @@ protected:
 	void EndAttack();
 	void EndChainLeniency();
 	
-	void EnableContactCollision(FMeleeAttackData data);
+	void EnableContactCollision(const FMeleeAttackData& data);
 	void DisableContactCollision();
 	
 	UFUNCTION()

@@ -177,15 +177,17 @@ void UMeleeAttackerComponent::EndChainLeniency()
 	CurrentChainIndex = 0;
 }
 
-void UMeleeAttackerComponent::EnableContactCollision(FMeleeAttackData data)
+void UMeleeAttackerComponent::EnableContactCollision(const FMeleeAttackData& data)
 {
 	if (data.HitBoxTransform.Equals(FTransform::Identity))
 	{
 		ContactCollision->SetRelativeTransform(BaseCollisionTransform);
-	} else
+	}
+	else
 	{
 		ContactCollision->SetRelativeTransform(data.HitBoxTransform);
 	}
+	
 	ContactCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 }
 

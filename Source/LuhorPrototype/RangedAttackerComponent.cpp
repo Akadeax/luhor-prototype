@@ -78,10 +78,21 @@ void URangedAttackerComponent::DoContact()
 
 void URangedAttackerComponent::DoRecovery()
 {
+	SetAttackState(EAttackState::Recovery);
+	const FRangedAttackData& data{ RangedAttack->AttackData };
+
+	const float playRate{ GetSectionPlayRate(data.Montage, "recovery", data.RecoveryTime) };
+	MainSkeletalMesh->GetAnimInstance()->Montage_SetPlayRate(data.Montage, playRate);
+	
+	GetWorld()->GetTimerManager().SetTimer(
+		CurrentAttackStateTimer, this, &ThisClass::EndAttack, data.RecoveryTime
+	);
 }
 
 void URangedAttackerComponent::EndAttack()
 {
+	SetAttackState(EAttackState::None);
+	OnAttackDone.Broadcast();
 }
 
 void URangedAttackerComponent::SpawnProjectile()
