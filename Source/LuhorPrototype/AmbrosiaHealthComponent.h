@@ -44,17 +44,17 @@ public:
 	
 	protected:
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia | Siphon")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Siphon")
 	float SiphonPercentage{5.f};
 	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia | Special Attack")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Special Attack")
 	float PoisonedAmbrosiaPerCharge{ 10.f };
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia | Special Attack")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Special Attack")
 	float MaxPoisonedAmbrosia{PoisonedAmbrosiaPerCharge};
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia | Special Attack")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Special Attack")
 	float CurrentPoisonedAmbrosia{0.f};
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia | Special Attack", meta = (ToolTip = "The percentage of ambrosia the player needs to have before putting a part of its ambrosia gain towards filling the special attack meter"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia|Special Attack", meta = (ToolTip = "The percentage of ambrosia the player needs to have before putting a part of its ambrosia gain towards filling the special attack meter"))
 	float SpecialChargeCutoff{0.66f};
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia")
