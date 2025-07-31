@@ -45,6 +45,7 @@ protected:
 	UPROPERTY() TObjectPtr<USkeletalMeshComponent> MainSkeletalMesh{};
 	UPROPERTY() TObjectPtr<ULuhorMovementComponent> MovementComponent{};
 	UPROPERTY() TObjectPtr<UShapeComponent> ContactCollision{};
+	FTransform BaseCollisionTransform{};
 
 	int CurrentChainIndex{ 0 };
 	FTimerHandle ChainLeniencyTimer;
@@ -59,7 +60,7 @@ protected:
 	void EndAttack();
 	void EndChainLeniency();
 	
-	void EnableContactCollision();
+	void EnableContactCollision(FMeleeAttackData data);
 	void DisableContactCollision();
 	
 	UFUNCTION()
