@@ -83,7 +83,7 @@ void UAmbrosiaHealthComponent::SiphonAmbrosia(float Amount)
 
 bool UAmbrosiaHealthComponent::TrySpendSpecialCharge()
 {
-	if ( CurrentPoisonedAmbrosia > PoisonedAmbrosiaPerCharge)
+	if ( CurrentPoisonedAmbrosia >= PoisonedAmbrosiaPerCharge)
 	{
 		CurrentPoisonedAmbrosia-= PoisonedAmbrosiaPerCharge;
 		return true;
