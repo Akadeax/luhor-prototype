@@ -14,7 +14,7 @@ enum class EAttackState : uint8
 	None, Windup, Contact, Recovery
 };
 
-UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+UCLASS(Abstract, ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class LUHORPROTOTYPE_API UBaseAttackerComponent : public USceneComponent
 {
 	GENERATED_BODY()

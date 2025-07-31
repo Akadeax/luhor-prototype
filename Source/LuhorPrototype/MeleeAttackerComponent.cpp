@@ -14,11 +14,6 @@ COMPDEP_IMPL_START(UMeleeAttackerComponent)
 	COMPDEP_DEP_ChildRequired(UShapeComponent)
 COMPDEP_IMPL_END
 
-UMeleeAttackerComponent::UMeleeAttackerComponent()
-{
-	PrimaryComponentTick.bCanEverTick = true;
-}
-
 bool UMeleeAttackerComponent::TryAttack()
 {
 	if (CurrentAttackState != EAttackState::None)

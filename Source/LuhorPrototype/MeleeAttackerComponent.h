@@ -3,9 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AttackData.h"
 #include "BaseAttackerComponent.h"
 #include "HittableComponent.h"
-#include "MeleeAttackChain.h"
 #include "Components/ActorComponent.h"
 #include "MeleeAttackerComponent.generated.h"
 
@@ -16,8 +16,6 @@ class LUHORPROTOTYPE_API UMeleeAttackerComponent : public UBaseAttackerComponent
 	COMPDEP_DECL()
 
 public:
-	UMeleeAttackerComponent();
-	
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMeleeAttackChainDone);
 	UPROPERTY(BlueprintAssignable) FOnMeleeAttackChainDone OnMeleeAttackChainDone;
 
