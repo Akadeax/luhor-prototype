@@ -3,49 +3,30 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "BaseAttackerComponent.h"
+#include "HittableComponent.h"
 #include "MeleeAttackChain.h"
 #include "Components/ActorComponent.h"
 #include "MeleeAttackerComponent.generated.h"
 
-class ULuhorMovementComponent;
-class UCapsuleComponent;
-class UFactionAssociation;
-
-UENUM(BlueprintType)
-enum class EMeleeAttackState : uint8
-{
-	None, Windup, Contact, Recovery
-};
-
-
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class LUHORPROTOTYPE_API UMeleeAttackerComponent : public USceneComponent, public IComponentDependencies
+class LUHORPROTOTYPE_API UMeleeAttackerComponent : public UBaseAttackerComponent, public IComponentDependencies
 {
 	GENERATED_BODY()
 	COMPDEP_DECL()
 
 public:
 	UMeleeAttackerComponent();
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMeleeAttackStarted);
-	UPROPERTY(BlueprintAssignable) FOnMeleeAttackStarted OnMeleeAttackStarted;
-	
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMeleeAttackDone);
-	UPROPERTY(BlueprintAssignable) FOnMeleeAttackDone OnMeleeAttackDone;
-
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMeleeAttackChainDone);
 	UPROPERTY(BlueprintAssignable) FOnMeleeAttackChainDone OnMeleeAttackChainDone;
 
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMeleeAttackCancelled);
 	UPROPERTY(BlueprintAssignable) FOnMeleeAttackCancelled OnMeleeAttackCancelled;
 
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMeleeAttackHit,float ,DamageAmount);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMeleeAttackHit, FHittableHitData, Data);
 	UPROPERTY(BlueprintAssignable) FOnMeleeAttackHit OnMeleeAttackHit;
 
-	
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMeleeAttackStateChanged, EMeleeAttackState, NewState);
-	UPROPERTY(BlueprintAssignable) FOnMeleeAttackStateChanged OnMeleeAttackStateChanged;
 	
 	UFUNCTION(BlueprintCallable)
 	bool TryAttack();
@@ -58,21 +39,14 @@ public:
 	
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	UFactionAssociation* Faction{};
-	
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	FName MainSkeletalMeshComponentTag{ "main_skeletal_mesh" };
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	TObjectPtr<UMeleeAttackChain> MeleeAttackChain;
 
 	UPROPERTY() TObjectPtr<USkeletalMeshComponent> MainSkeletalMesh{};
-	UPROPERTY() TObjectPtr<UShapeComponent> ContactCollision{};
 	UPROPERTY() TObjectPtr<ULuhorMovementComponent> MovementComponent{};
-
-	EMeleeAttackState CurrentAttackState{ EMeleeAttackState::None };
-	FTimerHandle CurrentAttackStateTimer;
+	UPROPERTY() TObjectPtr<UShapeComponent> ContactCollision{};
 
 	int CurrentChainIndex{ 0 };
 	FTimerHandle ChainLeniencyTimer;
@@ -100,10 +74,5 @@ protected:
 		const FHitResult& SweepResult
 	);
 
-	void SetMeleeAttackState(EMeleeAttackState NewState);
 	const FMeleeAttackData& GetCurrentAttack() const;
-	
-	// Calculate a play rate that makes an `originalTime` seconds long section take `desiredTime` seconds 
-	float ConvertPlayRate(float OriginalTime, float DesiredTime) const;
-	float GetSectionPlayRate(const UAnimMontage* Montage, FName SectionName, float DesiredTime) const;
 };
