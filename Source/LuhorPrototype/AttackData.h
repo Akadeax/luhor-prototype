@@ -82,5 +82,5 @@ class LUHORPROTOTYPE_API URangedAttack : public UDataAsset
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FRangedAttackData Attack{};
+	FRangedAttackData AttackData{};
 };

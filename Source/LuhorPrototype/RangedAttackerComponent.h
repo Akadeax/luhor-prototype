@@ -30,7 +30,7 @@ protected:
 	FName MainSkeletalMeshComponentTag{ "main_skeletal_mesh" };
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	TObjectPtr<URangedAttack> Attack;
+	TObjectPtr<URangedAttack> RangedAttack;
 
 	UPROPERTY() TObjectPtr<USkeletalMeshComponent> MainSkeletalMesh{};
 	UPROPERTY() TObjectPtr<ULuhorMovementComponent> MovementComponent{};
@@ -41,4 +41,6 @@ protected:
 	void DoContact();
 	void DoRecovery();
 	void EndAttack();
+
+	void SpawnProjectile();
 };
