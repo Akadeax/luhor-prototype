@@ -33,7 +33,7 @@ void UMeleeAttackerComponent::BeginPlay()
 	// Initialize contact collision
 	ContactCollision->SetGenerateOverlapEvents(true);
 	ContactCollision->OnComponentBeginOverlap.AddDynamic(this, &ThisClass::OnContactCollisionBeginOverlap);
-	BaseCollisionTransform = ContactCollision->GetComponentTransform();
+	BaseCollisionTransform = ContactCollision->GetRelativeTransform();
 	DisableContactCollision();
 
 	constexpr ECollisionChannel HITBOX_CHANNEL{ ECC_GameTraceChannel1 };
