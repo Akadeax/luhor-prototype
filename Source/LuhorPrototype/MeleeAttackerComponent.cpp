@@ -116,7 +116,7 @@ void UMeleeAttackerComponent::DoContact()
 	SetAttackState(EAttackState::Contact);
 	const FMeleeAttackData& data{ GetCurrentAttack() };
 	
-	EnableContactCollision();
+	EnableContactCollision(data);
 
 	if (MovementComponent)
 	{
