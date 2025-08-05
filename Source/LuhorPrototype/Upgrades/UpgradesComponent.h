@@ -32,7 +32,7 @@ public:
 	// Sets default values for this component's properties
 	UUpgradesComponent();
 	// Called every frame
-	void SetChangedFlag() {Changed = true;}
+	void RecalculateModifier();
 	StatModifier GetCurrentModifier();
 	void AddUpgrade(BaseUpgrade* upgrade);
 protected:
@@ -40,7 +40,5 @@ protected:
 
 	StatModifier CurrentStats{};
 	
-	void CalculateModifier();
 	TArray<BaseUpgrade*> Upgrades;
-	bool Changed{true};
 };

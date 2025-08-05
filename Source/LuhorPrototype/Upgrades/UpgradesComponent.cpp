@@ -15,10 +15,6 @@ UUpgradesComponent::UUpgradesComponent()
 
 StatModifier UUpgradesComponent::GetCurrentModifier()
 {
-	if (Changed)
-	{
-		CalculateModifier();
-	}
 	return CurrentStats;
 }
 
@@ -26,17 +22,16 @@ void UUpgradesComponent::AddUpgrade(BaseUpgrade* upgrade)
 {
 	Upgrades.Add(upgrade);
 	upgrade->SetUpgradesComponent(this);
-	SetChangedFlag();
+	RecalculateModifier();
 }
 
-void UUpgradesComponent::CalculateModifier()
+void UUpgradesComponent::RecalculateModifier()
 {
 	CurrentStats = {};
 	for (BaseUpgrade* upgrade : Upgrades)
 	{
 		CurrentStats += upgrade->GetStatModifier();
 	}
-	Changed = false;
 }
 
 
