@@ -75,6 +75,9 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	float GetHitStunTimeLeft() const { return CurrentHitStunTimeLeft; }
+
+	UFUNCTION(BlueprintCallable)
+	UFactionAssociation* GetFaction() const { return Faction; }
 	
 protected:
 	virtual void BeginPlay() override;

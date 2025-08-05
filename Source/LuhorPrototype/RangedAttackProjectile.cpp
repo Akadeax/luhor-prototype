@@ -1,3 +1,62 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "RangedAttackProjectile.h"
+
+#include "AttackData.h"
+#include "HittableComponent.h"
+#include "Components/BoxComponent.h"
+
+ARangedAttackProjectile::ARangedAttackProjectile()
+{
+	PrimaryActorTick.bCanEverTick = true;
+	
+	Collision = CreateDefaultSubobject<UBoxComponent>("Collision");
+	RootComponent = Collision;
+	
+	constexpr ECollisionChannel HITBOX_CHANNEL{ ECC_GameTraceChannel1 };
+	constexpr ECollisionChannel ATTACKBOX_CHANNEL{ ECC_GameTraceChannel2 };
+	
+	Collision->SetCollisionResponseToAllChannels(ECR_Ignore);
+	
+	Collision->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+	Collision->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
+	Collision->SetCollisionObjectType(ATTACKBOX_CHANNEL);
+	Collision->SetCollisionResponseToChannel(HITBOX_CHANNEL, ECR_Overlap);
+	Collision->SetCollisionResponseToChannel(ATTACKBOX_CHANNEL, ECR_Ignore);
+}
+
+void ARangedAttackProjectile::InitializeProjectile(const FProjectileData& Data)
+{
+	ProjectileData = Data;
+	SetActorRotation(Data.Direction);
+
+	Collision->OnComponentBeginOverlap.AddDynamic(this, &ThisClass::OnCollisionBeginOverlap);
+}
+
+void ARangedAttackProjectile::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	const FVector offsetPerSec{ ProjectileData.Direction.Vector() * ProjectileData.RangedAttack->AttackData.ProjectileSpeed };
+	AddActorWorldOffset(offsetPerSec * DeltaSeconds);
+}
+
+void ARangedAttackProjectile::OnCollisionBeginOverlap(
+	UPrimitiveComponent*,
+	AActor*,
+	UPrimitiveComponent* OtherComp,
+	int32,
+	bool,
+	const FHitResult&)
+{
+	UHittableComponent* hittable{ Cast<UHittableComponent>(OtherComp->GetAttachParent()) };
+	if (!hittable) return;
+	if (hittable->GetFaction() == ProjectileData.SourceFaction) return;
+	
+	const FHittableHitData data{ ProjectileData.RangedAttack->AttackData.Damage, ProjectileData.Source, ProjectileData.SourceFaction };
+
+	hittable->Hit(data);
+	OnProjectileHit.Broadcast(data);
+
+	Destroy();
+}

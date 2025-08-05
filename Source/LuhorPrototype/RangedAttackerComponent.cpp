@@ -21,6 +21,16 @@ bool URangedAttackerComponent::TryAttack()
 	return true;
 }
 
+void URangedAttackerComponent::CancelAttack()
+{
+	if (CurrentAttackState == EAttackState::None) return;
+	
+	MainSkeletalMesh->GetAnimInstance()->Montage_Stop(0.1f, RangedAttack->AttackData.Montage);
+	SetAttackState(EAttackState::None);
+	GetWorld()->GetTimerManager().ClearTimer(CurrentAttackStateTimer);
+	OnRangedAttackCancelled.Broadcast();
+}
+
 void URangedAttackerComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -97,4 +107,21 @@ void URangedAttackerComponent::EndAttack()
 
 void URangedAttackerComponent::SpawnProjectile()
 {
+	FRotator rot{ GetForwardVector().Rotation() };
+	rot.Pitch = 0;
+	rot.Roll = 0;
+	
+	ARangedAttackProjectile* proj{ GetWorld()->SpawnActor<ARangedAttackProjectile>(
+		RangedAttack->AttackData.ProjectileClass, GetOwner()->GetActorLocation(), rot
+	) };
+	check(proj);
+
+	proj->InitializeProjectile({ RangedAttack, Faction, GetOwner(), GetForwardVector().Rotation() });
+
+	proj->OnProjectileHit.AddDynamic(this, &ThisClass::OnProjectileHit);
+}
+
+void URangedAttackerComponent::OnProjectileHit(const FHittableHitData& Data)
+{
+	OnRangedAttackHit.Broadcast(Data);
 }

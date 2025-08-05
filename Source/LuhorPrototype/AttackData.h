@@ -55,6 +55,9 @@ struct LUHORPROTOTYPE_API FRangedAttackData
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	TSubclassOf<ARangedAttackProjectile> ProjectileClass{};
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float ProjectileSpeed{ 500.f };
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	float WindupTime{ 0.2f };

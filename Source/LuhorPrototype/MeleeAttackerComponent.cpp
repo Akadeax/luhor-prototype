@@ -78,7 +78,7 @@ void UMeleeAttackerComponent::CancelAttack()
 
 	AttackQueued = false;
 	CurrentChainIndex = 0;
-	CurrentAttackState = EAttackState::None;
+	SetAttackState(EAttackState::None);
 
 	DisableContactCollision();
 	
