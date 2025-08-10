@@ -17,6 +17,7 @@ public:
 	UAmbrosiaHealthComponent()
 	{
 		PrimaryComponentTick.bCanEverTick = true;
+		MaxPoisonedAmbrosia = PoisonedAmbrosiaPerCharge;
 	};
 	virtual void BeginPlay() override;
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLastStandStarted);
@@ -49,7 +50,7 @@ public:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Special Attack")
 	float PoisonedAmbrosiaPerCharge{ 10.f };
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Special Attack")
+	UPROPERTY( BlueprintReadOnly, Category="Ambrosia|Special Attack")
 	float MaxPoisonedAmbrosia{PoisonedAmbrosiaPerCharge};
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Special Attack")
 	float CurrentPoisonedAmbrosia{0.f};

@@ -1,11 +1,15 @@
 ﻿// SPinVarPanel.h
 #pragma once
+
 #include "Widgets/SCompoundWidget.h"
-#include "UObject/WeakObjectPtr.h"
 
 class ISinglePropertyView;
 class UBlueprint;
+class UClass;
+class UObject;
+class UActorComponent;
 struct FAssetData;
+class FProperty;
 
 class SPinVarPanel : public SCompoundWidget
 {
@@ -18,20 +22,41 @@ void Construct(const FArguments& InArgs);
 	void Refresh();
 
 private:
-	FSimpleDelegate OnRefreshRequested;
-	TSharedPtr<SVerticalBox> RootBox;
-
+	// Toolbar actions
 	FReply OnAddBlueprintVariableClicked();
-	void OnBlueprintPicked(const FAssetData& AssetData);
-	void ShowVariableGroupDialog(UBlueprint* BP);
+	void   OnBlueprintPicked(const FAssetData& AssetData);
 	FReply OnRemoveBlueprintVariableClicked();
 	void   ShowRemoveStagedDialog();
-	
+
+	// Unified “Add” dialog (Blueprint local / Parent C++ / Component)
+	void ShowAddDialog(UBlueprint* BP);
+
+	// Data gathering helpers for the Add dialog
+	void GatherLocalVars(UBlueprint* BP, TArray<FName>& OutVars) const;
+	void GatherNativeProps(UClass* Class, TArray<FName>& OutProps) const;
+	void GatherComponentPropsByTemplate(UObject* CompTemplate, TArray<FName>& OutProps) const;
+
+	// UI build
+	void Rebuild();
+	void GatherPinnedProperties();
+
+	// Small utils
+	static bool IsSkelOrReinst(const UClass* C);
+	static bool IsEditableProperty(const FProperty* P);
+
+private:
+	FSimpleDelegate             OnRefreshRequested;
+	TSharedPtr<SVerticalBox>    RootBox;
+
 	struct FEntry { FName Group; TSharedRef<SWidget> Widget; };
 	TMap<FName, TArray<FEntry>> Grouped;
 
-	void Rebuild();
-	void GatherPinnedProperties();
+	// ----- Add dialog state helpers -----
+public:
+	// Component option shown in the Add dialog
+	struct FCompOption
+	{
+		FName Label;        // Friendly label (e.g., AmbrosiaHealth)
+		FName TemplateName; // Exact CDO subobject name (e.g., AmbrosiaHealth_GEN_VARIABLE)
+	};
 };
-
-
