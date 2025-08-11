@@ -19,6 +19,7 @@ public:
 	SLATE_EVENT(FSimpleDelegate, OnRefreshRequested)
 SLATE_END_ARGS()
 
+	static FString PrettyBlueprintDisplayName(const UClass* Cls);
 void Construct(const FArguments& InArgs);
 	void Refresh();
 
@@ -75,8 +76,13 @@ public:
 		UBlueprint* BP = nullptr;
 		UClass*     Class = nullptr;
 
-		// Source: 0=Local BP var, 1=Parent C++ var, 2=Component var
-		int32 SourceIndex = 0;
+		enum class ESourceType : uint8
+		{
+			LocalBPVar,
+			LocalCppVar,
+			ComponentVar,
+		};
+		ESourceType SourceType = ESourceType::LocalBPVar;
 
 		TArray<TSharedPtr<FString>> LocalVarOpts;
 		TSharedPtr<FString>         LocalVarSel;
@@ -102,5 +108,9 @@ public:
 	};
 private:
 	void GetAllGroups(TSharedRef<FState> S);
+	static bool IsBPDeclared(const FProperty* P);
+	static bool IsNativeDeclared(const FProperty* P);
+	static UObject* FindComponentTemplate(UClass* Class, FName TemplateName);
+	static void BuildComponentOptions(UBlueprint* BP, UClass* Class,TArray<TSharedPtr<FCompOption>>& Out);
 	FString GroupStr;
 };
