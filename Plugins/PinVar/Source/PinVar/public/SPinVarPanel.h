@@ -95,9 +95,12 @@ public:
 		TArray<TSharedPtr<FCompOption>> CompOpts;
 	
 		FString GroupStr;
-		TSharedPtr<SSuggestionTextBox> GroupSuggest;
 		TArray<FString>                AllGroups;
+
+		TArray<TSharedPtr<FString>> ExistingGroupOpts;
+		TSharedPtr<FString>         ExistingGroupSel;
 	};
 private:
 	void GetAllGroups(TSharedRef<FState> S);
+	FString GroupStr;
 };
