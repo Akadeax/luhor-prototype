@@ -3,6 +3,7 @@
 
 #include "Widgets/SCompoundWidget.h"
 
+class SSearchableComboBox;
 class ISinglePropertyView;
 class UBlueprint;
 class UClass;
@@ -42,8 +43,8 @@ private:
 	// Small utils
 	static bool IsSkelOrReinst(const UClass* C);
 	static bool IsEditableProperty(const FProperty* P);
+	
 
-private:
 	FSimpleDelegate             OnRefreshRequested;
 	TSharedPtr<SVerticalBox>    RootBox;
 
@@ -57,6 +58,9 @@ private:
 	//add stuff to allow groups to remain open between 
 	TMap<FName, bool> GroupExpandedState;
 	TMap<FName, TWeakPtr<class SExpandableArea>> GroupAreaWidgets;
+
+
+	
 public:
 	
 	struct FCompOption
@@ -65,4 +69,35 @@ public:
 		FName TemplateName;
 		TWeakObjectPtr<UActorComponent> Template;
 	};
+	
+	struct FState : public TSharedFromThis<FState>
+	{
+		UBlueprint* BP = nullptr;
+		UClass*     Class = nullptr;
+
+		// Source: 0=Local BP var, 1=Parent C++ var, 2=Component var
+		int32 SourceIndex = 0;
+
+		TArray<TSharedPtr<FString>> LocalVarOpts;
+		TSharedPtr<FString>         LocalVarSel;
+
+		TArray<TSharedPtr<FString>> NativePropOpts;
+		TSharedPtr<FString>         NativePropSel;
+
+		TArray<TSharedPtr<FString>>                    CompOptLabels;
+		TMap<FString, TSharedPtr<FCompOption>> LabelToCompOpt;
+		TSharedPtr<FCompOption>          CompSel;
+
+		TArray<TSharedPtr<FString>>   CompPropOpts;
+		TSharedPtr<FString>           CompPropSel;
+		TSharedPtr<SSearchableComboBox> CompPropCombo;
+
+		TArray<TSharedPtr<FCompOption>> CompOpts;
+	
+		FString GroupStr;
+		TSharedPtr<SSuggestionTextBox> GroupSuggest;
+		TArray<FString>                AllGroups;
+	};
+private:
+	void GetAllGroups(TSharedRef<FState> S);
 };
