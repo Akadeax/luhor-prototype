@@ -1,5 +1,9 @@
 ﻿#include "PinVarSubsystem.h"
 #include "Interfaces/IPluginManager.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "Engine/SCS_Node.h"
+#include "Blueprint/BlueprintSupport.h"
+#include "Engine/BlueprintGeneratedClass.h"
 
 // --- helpers ---
 static bool ContainsTriple(const TArray<FPinnedVariable>& Arr, FName Var, FName Group, FName Comp)
@@ -16,21 +20,14 @@ static bool ContainsTriple(const TArray<FPinnedVariable>& Arr, FName Var, FName 
 void UPinVarSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	LoadFromDisk();         // populates StagedPinnedGroups (if file exists)
-	MergeStagedIntoPinned(); // mirror into PinnedGroups for UI
+	LoadFromDisk();         
+	MergeStagedIntoPinned(); 
+	RepopulateSessionCacheAll();
 }
 
-// --- API matching the header (with optional component template) ---
-void UPinVarSubsystem::PinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName /*= NAME_None*/)
-{
-	TArray<FPinnedVariable>& Vars = PinnedGroups.FindOrAdd(ClassName);
-	if (!ContainsTriple(Vars, VariableName, GroupName, ComponentTemplateName))
-	{
-		Vars.Add(FPinnedVariable(VariableName, GroupName, ComponentTemplateName));
-	}
-}
 
-void UPinVarSubsystem::StagePinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName /*= NAME_None*/)
+
+void UPinVarSubsystem::StagePinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName)
 {
 	TArray<FPinnedVariable>& Vars = StagedPinnedGroups.FindOrAdd(ClassName);
 	if (!ContainsTriple(Vars, VariableName, GroupName, ComponentTemplateName))
@@ -40,7 +37,22 @@ void UPinVarSubsystem::StagePinVariable(FName ClassName, FName VariableName, FNa
 	this->SaveToDisk();
 }
 
-bool UPinVarSubsystem::UnstagePinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName /*= NAME_None*/)
+
+void UPinVarSubsystem::StagePinVariableWithTemplate(FName ClassName, FName VariableName, FName GroupName,
+                                                    FName ComponentTemplateName, UObject* TemplatePtr,
+                                                    FName ComponentVariablePrettyName)
+{
+	TArray<FPinnedVariable>& Vars = StagedPinnedGroups.FindOrAdd(ClassName);
+	if (!ContainsTriple(Vars, VariableName, GroupName, ComponentTemplateName))
+	{
+		FPinnedVariable E(VariableName, GroupName, ComponentTemplateName, ComponentVariablePrettyName);
+		E.ResolvedTemplate = TemplatePtr;
+		Vars.Add(MoveTemp(E));
+	}
+	this->SaveToDisk();
+}
+
+bool UPinVarSubsystem::UnstagePinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName)
 {
 	if (TArray<FPinnedVariable>* Vars = StagedPinnedGroups.Find(ClassName))
 	{
@@ -64,7 +76,7 @@ bool UPinVarSubsystem::UnstagePinVariable(FName ClassName, FName VariableName, F
 
 void UPinVarSubsystem::MergeStagedIntoPinned()
 {
-	PinnedGroups.Empty(); // clean slate
+	PinnedGroups.Empty();
 	for (const auto& Pair : StagedPinnedGroups)
 	{
 		const FName ClassName = Pair.Key;
@@ -74,26 +86,61 @@ void UPinVarSubsystem::MergeStagedIntoPinned()
 	}
 }
 
-const TArray<FPinnedVariable>* UPinVarSubsystem::GetPinnedVariables(FName ClassName) const
-{
-	return PinnedGroups.Find(ClassName);
-}
 
-// Keep legacy triples (Class, Var, Group) for older UI paths
-void UPinVarSubsystem::GetAllStaged(TArray<TTuple<FName,FName,FName>>& OutTriples) const
+void UPinVarSubsystem::RepopulateSessionCacheAll()
 {
-	OutTriples.Reset();
-	for (const auto& Pair : StagedPinnedGroups)
+	for (auto& Pair : StagedPinnedGroups)
 	{
 		const FName ClassName = Pair.Key;
-		for (const FPinnedVariable& E : Pair.Value)
+		UClass* Cls = FindFirstObjectSafe<UClass>(*ClassName.ToString());
+		if (!Cls) continue;
+
+		for (FPinnedVariable& E : Pair.Value)
 		{
-			OutTriples.Add(MakeTuple(ClassName, E.VariableName, E.GroupName));
+			if (!E.ComponentTemplateName.IsNone())
+			{
+				UObject* Found = nullptr;
+
+				// Try CDO first
+				if (UObject* CDO = Cls->GetDefaultObject(true))
+				{
+					Found = CDO->GetDefaultSubobjectByName(E.ComponentTemplateName);
+				}
+
+				// Try SCS pretty name
+				if (!Found && !E.ComponentVariablePrettyName.IsNone())
+				{
+					for (UClass* C = Cls; C; C = C->GetSuperClass())
+					{
+						if (UBlueprintGeneratedClass* BPGC = Cast<UBlueprintGeneratedClass>(C))
+						{
+							if (UBlueprint* OwnerBP = Cast<UBlueprint>(BPGC->ClassGeneratedBy))
+							{
+								if (USimpleConstructionScript* SCS = OwnerBP->SimpleConstructionScript)
+								{
+									for (USCS_Node* Node : SCS->GetAllNodes())
+									{
+										if (Node && Node->GetVariableName() == E.ComponentVariablePrettyName)
+										{
+											Found = Node->GetActualComponentTemplate(BPGC);
+											if (!Found) Found = Node->ComponentTemplate;
+											break;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+
+				E.ResolvedTemplate = Found;
+			}
 		}
 	}
 }
 
-// New: quads with component template name included
+
+
 void UPinVarSubsystem::GetAllStagedWithComp(TArray<TTuple<FName,FName,FName,FName>>& OutQuads) const
 {
 	OutQuads.Reset();
@@ -110,7 +157,6 @@ void UPinVarSubsystem::GetAllStagedWithComp(TArray<TTuple<FName,FName,FName,FNam
 // --- disk IO ---
 FString UPinVarSubsystem::GetPinsFilePath() const
 {
-	// <PluginDir>/PinVar/Pinned.json
 	const FString Dir = FPaths::Combine(IPluginManager::Get().FindPlugin(TEXT("PinVar"))->GetBaseDir(), TEXT("PinVar"));
 	IFileManager::Get().MakeDirectory(*Dir, /*Tree*/true);
 	return FPaths::Combine(Dir, TEXT("Pinned.json"));
@@ -151,6 +197,10 @@ bool UPinVarSubsystem::SaveToDisk() const
 			{
 				J->SetStringField(TEXT("Comp"), E.ComponentTemplateName.ToString());
 			}
+			if (!E.ComponentVariablePrettyName.IsNone())
+			{
+				J->SetStringField(TEXT("CompVar"), E.ComponentVariablePrettyName.ToString());
+			}
 			JArr.Add(MakeShared<FJsonValueObject>(J));
 		}
 		Root->SetArrayField(ClassKey, JArr);
@@ -173,10 +223,6 @@ bool UPinVarSubsystem::SaveToDisk() const
 	{
 		UE_LOG(LogTemp, Error, TEXT("PinVar: SaveToDisk - SaveStringToFile failed: %s"), *FilePath);
 	}
-	else
-	{
-		UE_LOG(LogTemp, Log, TEXT("PinVar: SaveToDisk OK -> %s (%d bytes)"), *FilePath, OutStr.Len());
-	}
 	return bSaved;
 }
 
@@ -184,11 +230,7 @@ bool UPinVarSubsystem::LoadFromDisk()
 {
 	const FString FilePath = GetPinsFilePath();
 	FString InStr;
-	if (!FPaths::FileExists(FilePath) || !FFileHelper::LoadFileToString(InStr, *FilePath))
-	{
-		UE_LOG(LogTemp, Log, TEXT("PinVar: LoadFromDisk - no file at %s"), *FilePath);
-		return false;
-	}
+	if (!FPaths::FileExists(FilePath) || !FFileHelper::LoadFileToString(InStr, *FilePath)){return false;}
 
 	TSharedPtr<FJsonObject> Root;
 	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(InStr);
@@ -217,20 +259,26 @@ bool UPinVarSubsystem::LoadFromDisk()
 			if (!JV.IsValid() || !JV->TryGetObject(ObjPtr) || !ObjPtr || !ObjPtr->IsValid())
 				continue;
 
-			FString VarStr, GroupStr, CompStr;
+			FString VarStr, GroupStr, CompStr, CompVarStr;
 			(*ObjPtr)->TryGetStringField(TEXT("Var"), VarStr);
 			(*ObjPtr)->TryGetStringField(TEXT("Group"), GroupStr);
-			(*ObjPtr)->TryGetStringField(TEXT("Comp"), CompStr); // optional
+			(*ObjPtr)->TryGetStringField(TEXT("Comp"), CompStr);
+			(*ObjPtr)->TryGetStringField(TEXT("CompVar"), CompVarStr);
 			if (!VarStr.IsEmpty() && !GroupStr.IsEmpty())
 			{
-				Arr.Add(FPinnedVariable(FName(*VarStr), FName(*GroupStr), CompStr.IsEmpty() ? NAME_None : FName(*CompStr)));
+				Arr.Add(FPinnedVariable(
+					FName(*VarStr),
+					FName(*GroupStr),
+					CompStr.IsEmpty() ? NAME_None : FName(*CompStr),
+					CompVarStr.IsEmpty() ? NAME_None : FName(*CompVarStr)
+				));
 			}
 		}
 
 		if (Arr.Num() > 0) ++ClassesLoaded;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("PinVar: LoadFromDisk - loaded %d classes."), ClassesLoaded);
 	MergeStagedIntoPinned();
+	RepopulateSessionCacheAll();
 	return true;
 }

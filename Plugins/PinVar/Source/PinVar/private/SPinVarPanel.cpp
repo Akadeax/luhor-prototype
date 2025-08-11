@@ -40,13 +40,11 @@ static UObject* FindComponentTemplate(UClass* Class, FName TemplateName)
 	{
 		if (UObject* CDO = C->GetDefaultObject(true))
 		{
-			// 1) Fast path: direct default subobjects
 			if (UObject* T = CDO->GetDefaultSubobjectByName(TemplateName)) return T;
 			if (UObject* T2 = CDO->GetDefaultSubobjectByName(Alt))         return T2;
 
-			// 2) Full scan, including nested subobjects (some BP templates are nested)
 			TArray<UObject*> Subs;
-			GetObjectsWithOuter(CDO, Subs, /*bIncludeNestedObjects*/ true);
+			GetObjectsWithOuter(CDO, Subs, true);
 			for (UObject* O : Subs)
 			{
 				if (!O) continue;
@@ -57,7 +55,7 @@ static UObject* FindComponentTemplate(UClass* Class, FName TemplateName)
 		}
 	}
 
-	// 3) Last‑ditch global sweep (editor only): archetype components under any CDO in the chain
+	// Last‑ditch global sweep (editor only): archetype components under any CDO in the chain
 	for (TObjectIterator<UActorComponent> It; It; ++It)
 	{
 		UActorComponent* Comp = *It;
@@ -67,15 +65,12 @@ static UObject* FindComponentTemplate(UClass* Class, FName TemplateName)
 		UObject* Outer = Comp->GetOuter();
 		while (Outer && !Outer->IsA<UClass>())
 		{
-			if (Outer->IsA<UObject>() && Outer->GetFName() == TemplateName) return Comp;
-			if (Outer->GetFName() == Alt) return Comp;
+			if (Outer->GetFName() == TemplateName || Outer->GetFName() == Alt) return Comp;
 			Outer = Outer->GetOuter();
 		}
 	}
-
 	return nullptr;
 }
-
 
 static void BuildComponentOptions(UBlueprint* BP, UClass* Class, TArray<TSharedPtr<SPinVarPanel::FCompOption>>& Out)
 {
@@ -84,6 +79,7 @@ static void BuildComponentOptions(UBlueprint* BP, UClass* Class, TArray<TSharedP
 
 	TSet<FName> Seen;
 
+	// Pass 1: collect all component templates from CDOs up the chain
 	for (UClass* C = Class; C; C = C->GetSuperClass())
 	{
 		if (UObject* CDO = C->GetDefaultObject(true))
@@ -93,74 +89,63 @@ static void BuildComponentOptions(UBlueprint* BP, UClass* Class, TArray<TSharedP
 
 			for (UObject* O : Subs)
 			{
-				if (!O || !O->IsA<UActorComponent>()) continue;
+				UActorComponent* Comp = Cast<UActorComponent>(O);
+				if (!Comp) continue;
 
-				const FName TmplName = O->GetFName();
+				const FName TmplName = Comp->GetFName();
 				if (Seen.Contains(TmplName)) continue;
 
 				Seen.Add(TmplName);
 
 				auto Opt = MakeShared<SPinVarPanel::FCompOption>();
-				Opt->Label        = TmplName;   // provisional: will be prettified by SCS pass
-				Opt->TemplateName = TmplName;   // exact binding key
+				Opt->Label        = TmplName;   // provisional label
+				Opt->TemplateName = TmplName;   // stable key
+				Opt->Template     = Comp;       // keep the actual template (weak)
 				Out.Add(Opt);
 			}
 		}
 	}
 
-	// Small helper to update/add from an SCS node
+	// Small helper: upsert from an SCS node
 	auto UpsertFromNode = [&Out, &Seen](UClass* OwningClass, USCS_Node* Node)
 	{
 		if (!Node || !OwningClass) return;
 
-		// Resolve the *actual* template for this node on its own BPGC
 		UBlueprintGeneratedClass* BPGC = Cast<UBlueprintGeneratedClass>(OwningClass);
-		UActorComponent* ActualTemplate = nullptr;
-		if (BPGC)
-		{
-			ActualTemplate = Node->GetActualComponentTemplate(BPGC);
-		}
+		UActorComponent* ActualTemplate = BPGC ? Node->GetActualComponentTemplate(BPGC) : nullptr;
 		if (!ActualTemplate)
 		{
 			ActualTemplate = Node->ComponentTemplate;
 		}
 
 		const FName Pretty = Node->GetVariableName();
-		FName TemplateKey = NAME_None;
+		FName TemplateKey = ActualTemplate ? ActualTemplate->GetFName()
+		                                   : FName(*(Pretty.ToString() + TEXT("_GEN_VARIABLE")));
 
-		if (ActualTemplate)
-		{
-			TemplateKey = ActualTemplate->GetFName();  // trust SCS, even if on a parent CDO
-		}
-		else
-		{
-			// Heuristic only if we truly can't resolve (rare)
-			TemplateKey = FName(*(Pretty.ToString() + TEXT("_GEN_VARIABLE")));
-		}
-
-		// If the template already exists from the CDO pass, just improve the label.
+		// If exists, improve label and fill template
 		for (auto& Opt : Out)
 		{
 			if (Opt->TemplateName == TemplateKey)
 			{
 				Opt->Label = Pretty;
+				if (ActualTemplate) { Opt->Template = ActualTemplate; }
 				return;
 			}
 		}
 
-		// Otherwise add it now (covers design-time-only cases)
+		// Otherwise add it now
 		if (!Seen.Contains(TemplateKey))
 		{
 			Seen.Add(TemplateKey);
 			auto Opt = MakeShared<SPinVarPanel::FCompOption>();
 			Opt->Label        = Pretty;
 			Opt->TemplateName = TemplateKey;
+			Opt->Template     = ActualTemplate; // may be null (rare)
 			Out.Add(Opt);
 		}
 	};
 
-	// ---- 2) Walk the *Blueprint chain*: for each BPGC in the class hierarchy,
-	// use that Blueprint's SCS to prettify labels and catch unusual templates.
+	// Pass 2: walk BPGCs and refine labels/templates via SCS
 	for (UClass* C = Class; C; C = C->GetSuperClass())
 	{
 		if (UBlueprintGeneratedClass* BPGC = Cast<UBlueprintGeneratedClass>(C))
@@ -183,15 +168,15 @@ static void BuildComponentOptions(UBlueprint* BP, UClass* Class, TArray<TSharedP
 	{
 		return A->Label.LexicalLess(B->Label);
 	});
-
-	UE_LOG(LogTemp, Verbose, TEXT("PinVar: Component options for %s"), *Class->GetName());
-	for (const auto& Opt : Out)
-	{
-		UE_LOG(LogTemp, Verbose, TEXT("  Label='%s'  TemplateName='%s'"),
-			*Opt->Label.ToString(), *Opt->TemplateName.ToString());
-	}
 }
 
+static FString PrettyBlueprintDisplayName(const UClass* Cls)
+{
+	if (!Cls) return TEXT("");
+	FString N = Cls->GetName(); // e.g. "BP_PlayerCharacter_C"
+	N.RemoveFromEnd(TEXT("_C"), ESearchCase::CaseSensitive);
+	return N;
+}
 
 
 // ----------------- widget -----------------
@@ -240,19 +225,6 @@ void SPinVarPanel::Construct(const FArguments& InArgs)
 					SNew(STextBlock).Text(FText::FromString(TEXT("Add Variable")))
 				]
 			]
-
-			// Remove
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.Padding(6.f, 0.f)
-			[
-				SNew(SButton)
-				.ButtonStyle(FAppStyle::Get(), "FlatButton")
-				.OnClicked(this, &SPinVarPanel::OnRemoveBlueprintVariableClicked)
-				[
-					SNew(STextBlock).Text(FText::FromString(TEXT("Remove Variable")))
-				]
-			]
 		]
 
 		// Scrollable list
@@ -276,14 +248,34 @@ void SPinVarPanel::Refresh()
 	{
 		OnRefreshRequested.Execute();
 	}
+
+	if (GEditor)
+	{
+		if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
+		{
+			Subsystem->RepopulateSessionCacheAll();
+		}
+	}
+
 	Grouped.Reset();
 	Rebuild();
 }
 
+
+
 void SPinVarPanel::Rebuild()
 {
-	RootBox->ClearChildren();
+	for (auto& Pair : GroupAreaWidgets)
+	{
+		const FName GroupName = Pair.Key;
+		if (TSharedPtr<SExpandableArea> Area = Pair.Value.Pin())
+		{
+			GroupExpandedState.Add(GroupName, Area->IsExpanded());
+		}
+	}
+	GroupAreaWidgets.Empty();
 
+	RootBox->ClearChildren();
 	GatherPinnedProperties();
 
 	if (Grouped.Num() == 0)
@@ -294,6 +286,8 @@ void SPinVarPanel::Rebuild()
 			SNew(STextBlock)
 			.Text(FText::FromString(TEXT("No pinned variables yet. Use “Add Variable” to stage entries.")))
 		];
+
+		GroupExpandedState.Empty();
 		return;
 	}
 
@@ -304,10 +298,8 @@ void SPinVarPanel::Rebuild()
 
 		TSharedRef<SVerticalBox> ListVB = SNew(SVerticalBox);
 
-		RootBox->AddSlot()
-		.AutoHeight()
-		.Padding(0.f, 4.f)
-		[
+		// Create the group area (collapsed by default), then apply remembered state
+		TSharedRef<SExpandableArea> Area =
 			SNew(SExpandableArea)
 			.InitiallyCollapsed(true)
 			.HeaderContent()[ SNew(STextBlock).Text(FText::FromName(Group)) ]
@@ -316,9 +308,26 @@ void SPinVarPanel::Rebuild()
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot().AutoHeight()[ SNew(SSeparator) ]
 				+ SVerticalBox::Slot().AutoHeight()[ ListVB ]
-			]
+			];
+
+		// Restore expansion if we remembered it
+		const bool* Remembered = GroupExpandedState.Find(Group);
+		if (Remembered && *Remembered)
+		{
+			Area->SetExpanded(true);
+		}
+
+		// Track this area so we can snapshot its state next rebuild
+		GroupAreaWidgets.Add(Group, Area);
+
+		RootBox->AddSlot()
+		.AutoHeight()
+		.Padding(0.f, 4.f)
+		[
+			Area
 		];
 
+		// Populate the body with the class sections we already assembled
 		for (const FEntry& E : Entries)
 		{
 			ListVB->AddSlot()
@@ -366,9 +375,34 @@ void SPinVarPanel::GatherPinnedProperties()
 
 	FPropertyEditorModule& PropEd = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
-	// Track which classes already got a header per group
-	TMap<FName, TSet<FName>> LabeledClassesByGroup;
+	// ------- Buckets: Group -> Class -> {BP, Native, Components} -------
+	struct FClassBuckets
+	{
+		FName   ClassName;
+		FText   ClassLabel;
 
+		TArray<FName> BPVars;
+		TArray<FName> NativeVars;
+
+		TMap<FName, TArray<FName>> ComponentVarsByName;          // CompLabel -> Var list
+		TMap<FName, TWeakObjectPtr<UObject>> ComponentTemplates; // CompLabel -> template obj
+	};
+
+	TMap<FName, TMap<FName, FClassBuckets>> Build; // Group -> (ClassName -> Buckets)
+
+	// Helpers to classify where a property was declared
+	auto IsBPDeclared = [](const FProperty* P)
+	{
+		const UClass* OwnerClass = Cast<UClass>(P ? P->GetOwnerStruct() : nullptr);
+		return (OwnerClass && OwnerClass->ClassGeneratedBy != nullptr);
+	};
+	auto IsNativeDeclared = [](const FProperty* P)
+	{
+		const UClass* OwnerClass = Cast<UClass>(P ? P->GetOwnerStruct() : nullptr);
+		return (OwnerClass && OwnerClass->ClassGeneratedBy == nullptr);
+	};
+
+	// -------- Collect --------
 	for (const TPair<FName, TArray<FPinnedVariable>>& Pair : Subsystem->PinnedGroups)
 	{
 		const FName ClassName = Pair.Key;
@@ -379,88 +413,221 @@ void SPinVarPanel::GatherPinnedProperties()
 		if (!CDO) continue;
 
 		const FName ClassFName = Cls->GetFName();
-		const FText ClassLabel = FText::FromString(Cls->GetName());
+		const FText ClassLabel = FText::FromString(PrettyBlueprintDisplayName(Cls)); // display-only prettified name. 
 
 		for (const FPinnedVariable& Pinned : Pair.Value)
 		{
-			const FName VarName = Pinned.VariableName;
-
+			// Resolve target object (class defaults or component template)
 			UObject* TargetObj = CDO;
-			if (!Pinned.ComponentTemplateName.IsNone())
+			const bool bIsComponent = !Pinned.ComponentTemplateName.IsNone();
+			if (bIsComponent)
 			{
-				// Bind to the component template (default subobject on the CDO)
-				TargetObj = FindComponentTemplate(Cls, Pinned.ComponentTemplateName);
+				TargetObj = Pinned.ResolvedTemplate.IsValid()
+					? Pinned.ResolvedTemplate.Get()
+					: FindComponentTemplate(Cls, Pinned.ComponentTemplateName);
+
 				if (!TargetObj)
 				{
-					UE_LOG(LogTemp, Warning, TEXT("PinVar.Panel: component template '%s' not found on %s"),
+					UE_LOG(LogTemp, Warning, TEXT("PinVar.Panel: component template '%s' not resolved on %s"),
 						*Pinned.ComponentTemplateName.ToString(), *CDO->GetName());
 					continue;
 				}
 			}
 
-			FProperty* FoundProp = FindFProperty<FProperty>(TargetObj->GetClass(), VarName);
-			if (!FoundProp) continue;
+			// Check property exists and is editable
+			FProperty* Found = FindFProperty<FProperty>(TargetObj->GetClass(), Pinned.VariableName);
+			if (!Found || !IsEditableProperty(Found)) continue;  // uses your IsEditableProperty() 
 
-			// Split "Core|Debug"
+			// Groups can be split by ','
 			TArray<FString> Tokens;
 			const FString GroupStr = Pinned.GroupName.ToString();
-			GroupStr.ParseIntoArray(Tokens, TEXT("|"), true);
-			if (Tokens.Num() == 0) { Tokens.Add(GroupStr); }
+			GroupStr.ParseIntoArray(Tokens, TEXT(","), /*CullEmpty*/true);
+			if (Tokens.Num() == 0) Tokens.Add(GroupStr);
 
 			for (const FString& Tok : Tokens)
 			{
 				const FName GroupName(*Tok.TrimStartAndEnd());
 				if (GroupName.IsNone()) continue;
 
-				// Fresh property view per group
-				FSinglePropertyParams Params;
-				TSharedPtr<ISinglePropertyView> View =
-					PropEd.CreateSingleProperty(TargetObj, VarName, Params);
-				if (!View.IsValid()) continue;
+				FClassBuckets& B = Build.FindOrAdd(GroupName).FindOrAdd(ClassFName);
+				B.ClassName  = ClassFName;
+				B.ClassLabel = ClassLabel;
 
-				const bool bFirstForThisClassInGroup =
-					!LabeledClassesByGroup.FindOrAdd(GroupName).Contains(ClassFName);
-
-				TSharedRef<SVerticalBox> RowVB = SNew(SVerticalBox);
-
-				if (bFirstForThisClassInGroup)
+				if (!bIsComponent)
 				{
-					RowVB->AddSlot().AutoHeight()
-					[
-						SNew(STextBlock)
-						.Text(ClassLabel)
-						.Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
-					];
+					// Class defaults: BP vs Native by owner
+					if (IsBPDeclared(Found))          { B.BPVars.Add(Pinned.VariableName); }
+					else if (IsNativeDeclared(Found)) { B.NativeVars.Add(Pinned.VariableName); }
+					else                               { B.BPVars.Add(Pinned.VariableName); } // fallback
 				}
-
-				if (!Pinned.ComponentTemplateName.IsNone())
+				else
 				{
-					RowVB->AddSlot().AutoHeight().Padding(0.f, 2.f, 0.f, 0.f)
-					[
-						SNew(STextBlock)
-						.Text(FText::FromString(FString::Printf(TEXT("• %s"), *Pinned.ComponentTemplateName.ToString())))
-						.ColorAndOpacity(FLinearColor(0.8f,0.8f,0.8f,1.f))
-					];
-				}
+					// Component: show pretty label if present, else template name
+					const FName CompLabel = !Pinned.ComponentVariablePrettyName.IsNone()
+						? Pinned.ComponentVariablePrettyName
+						: Pinned.ComponentTemplateName;
 
-				RowVB->AddSlot().AutoHeight().Padding(0.f, 2.f, 0.f, 0.f)
-				[
-					StaticCastSharedRef<SWidget>(View.ToSharedRef())
-				];
-
-				Grouped.FindOrAdd(GroupName).Add({ GroupName, RowVB });
-
-				if (bFirstForThisClassInGroup)
-				{
-					LabeledClassesByGroup.FindOrAdd(GroupName).Add(ClassFName);
+					B.ComponentVarsByName.FindOrAdd(CompLabel).Add(Pinned.VariableName);
+					if (!B.ComponentTemplates.Contains(CompLabel))
+					{
+						B.ComponentTemplates.Add(CompLabel, TargetObj);
+					}
 				}
 			}
 		}
 	}
+
+	// -------- Emit UI into Grouped (ONE widget per class) --------
+	for (auto& GroupKV : Build)
+	{
+		const FName Group = GroupKV.Key;
+		TMap<FName, FClassBuckets>& Classes = GroupKV.Value;
+
+		// Sort classes by their label (case-insensitive)
+		TArray<FName> ClassOrder;
+		Classes.GenerateKeyArray(ClassOrder);
+		ClassOrder.Sort([&Classes](const FName& A, const FName& B)
+		{
+			return Classes[A].ClassLabel.ToString().Compare(
+				Classes[B].ClassLabel.ToString(), ESearchCase::IgnoreCase) < 0;
+		});
+
+		for (const FName& CN : ClassOrder)
+		{
+			FClassBuckets& B = Classes[CN];
+
+			// Sort buckets
+			B.BPVars.Sort(FNameLexicalLess());
+			B.NativeVars.Sort(FNameLexicalLess());
+
+			TArray<FName> CompNames;
+			B.ComponentVarsByName.GenerateKeyArray(CompNames);
+			CompNames.Sort(FNameLexicalLess());
+			for (auto& CKV : B.ComponentVarsByName) { CKV.Value.Sort(FNameLexicalLess()); }
+
+			// Build a single widget for this class section
+			TSharedRef<SVerticalBox> ClassVB = SNew(SVerticalBox);
+
+			// Class header (bigger + bold)
+			ClassVB->AddSlot().AutoHeight().Padding(6.f, 8.f, 6.f, 4.f)
+			[
+				SNew(STextBlock)
+				.Text(B.ClassLabel)
+				.Font(FCoreStyle::GetDefaultFontStyle("Bold", 14))
+			];
+
+			// Helpers: plain prop widget + prop widget with Delete button (no lambdas)
+			auto EmitPropOnly = [&](UObject* Target, const FName Var) -> TSharedRef<SWidget>
+			{
+				FSinglePropertyParams Params;
+				TSharedPtr<ISinglePropertyView> View = PropEd.CreateSingleProperty(Target, Var, Params);
+				return View.IsValid()
+					? StaticCastSharedRef<SWidget>(View.ToSharedRef())
+					: SNew(STextBlock).Text(FText::FromString(Var.ToString()));
+			};
+
+			auto EmitPropWithDelete = [&](UObject* Target,
+			                              const FName Var,
+			                              const FName GroupName,
+			                              const FName ClassName,
+			                              const FName CompNameForRemoval) -> TSharedRef<SWidget>
+			{
+				return SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot()
+				.FillWidth(1.f)
+				[
+					EmitPropOnly(Target, Var)
+				]
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(6.f, 0.f, 0.f, 0.f)
+				[
+					SNew(SButton)
+					.ButtonStyle(FAppStyle::Get(), "FlatButton")
+					.ContentPadding(FMargin(4.f, 2.f))
+					.ToolTipText(FText::FromString(TEXT("Remove this variable from the list")))
+					.OnClicked(this, &SPinVarPanel::OnRemovePinned, ClassName, Var, GroupName, CompNameForRemoval)
+					[
+						SNew(STextBlock)
+						.Text(FText::FromString(TEXT("X")))
+						.ColorAndOpacity(FLinearColor::Red)
+					]
+				];
+			};
+
+			// Class defaults (BP then Native)
+			if (B.BPVars.Num() || B.NativeVars.Num())
+			{
+				if (UClass* ClsForCDO = FindFirstObjectSafe<UClass>(*B.ClassName.ToString()))
+				{
+					if (UObject* CDO = ClsForCDO->GetDefaultObject(true))
+					{
+						for (const FName& Var : B.BPVars)
+						{
+							ClassVB->AddSlot().AutoHeight().Padding(16.f, 2.f)
+							[ EmitPropWithDelete(CDO, Var, Group, B.ClassName, NAME_None) ];
+						}
+						for (const FName& Var : B.NativeVars)
+						{
+							ClassVB->AddSlot().AutoHeight().Padding(16.f, 2.f)
+							[ EmitPropWithDelete(CDO, Var, Group, B.ClassName, NAME_None) ];
+						}
+					}
+				}
+			}
+
+			// Components
+			for (const FName& CompLabel : CompNames)
+			{
+				ClassVB->AddSlot().AutoHeight().Padding(10.f, 8.f, 6.f, 2.f)
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(FString::Printf(TEXT("Component: %s"), *CompLabel.ToString())))
+					.ColorAndOpacity(FLinearColor(0.8f,0.8f,0.8f,1))
+				];
+
+				UObject* Tmpl = B.ComponentTemplates.FindRef(CompLabel).Get();
+				if (!Tmpl) continue;
+
+				const FName CompNameForRemoval = Tmpl->GetFName(); // remove by template key
+
+				for (const FName& Var : B.ComponentVarsByName[CompLabel])
+				{
+					ClassVB->AddSlot().AutoHeight().Padding(16.f, 2.f)
+					[
+						EmitPropWithDelete(Tmpl, Var, Group, B.ClassName, CompNameForRemoval)
+					];
+				}
+			}
+
+			// One entry per class for this group
+			Grouped.FindOrAdd(Group).Add({ Group, ClassVB });
+		}
+	}
 }
+
+
+FReply SPinVarPanel::OnRemovePinned(FName ClassName, FName VarName, FName GroupName, FName CompName)
+{
+	if (GEditor)
+	{
+		if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
+		{
+			Subsystem->UnstagePinVariable(ClassName, VarName, GroupName, CompName);
+			Refresh(); // rebuild UI
+		}
+	}
+	return FReply::Handled();
+}
+
 
 FReply SPinVarPanel::OnAddBlueprintVariableClicked()
 {
+	if (TSharedPtr<SWindow> W = SelectBlueprintWindow.Pin()) { W->RequestDestroyWindow(); }
+	if (TSharedPtr<SWindow> W = AddVariableWindow.Pin())     { W->RequestDestroyWindow(); }
 	FAssetPickerConfig PickerConfig;
 	PickerConfig.Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
 	PickerConfig.SelectionMode = ESelectionMode::Single;
@@ -475,12 +642,14 @@ FReply SPinVarPanel::OnAddBlueprintVariableClicked()
 			.CreateAssetPicker(PickerConfig)
 		];
 
+	SelectBlueprintWindow = PickerWindow;
 	FSlateApplication::Get().AddWindow(PickerWindow);
 	return FReply::Handled();
 }
 
 void SPinVarPanel::OnBlueprintPicked(const FAssetData& AssetData)
 {
+	if (TSharedPtr<SWindow> W = AddVariableWindow.Pin())     { W->RequestDestroyWindow(); }
 	if (!AssetData.IsValid())
 		return;
 
@@ -495,6 +664,7 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 {
 	if (!BP) return;
 
+	// Ensure a generated class exists
 	if (!BP->GeneratedClass)
 	{
 		FKismetEditorUtilities::CompileBlueprint(BP);
@@ -506,96 +676,100 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 		return;
 	}
 
-	// Dialog state
+	// --- Dialog state ---
 	struct FState : public TSharedFromThis<FState>
 	{
 		UBlueprint* BP = nullptr;
-		UClass* Class = nullptr;
+		UClass*     Class = nullptr;
 
 		// Source: 0=Local BP var, 1=Parent C++ var, 2=Component var
 		int32 SourceIndex = 0;
 
 		// Local BP vars
 		TArray<TSharedPtr<FName>> LocalVarOpts;
-		TSharedPtr<FName> LocalVarSel;
+		TSharedPtr<FName>         LocalVarSel;
 
 		// Parent C++ props
 		TArray<TSharedPtr<FName>> NativePropOpts;
-		TSharedPtr<FName> NativePropSel;
+		TSharedPtr<FName>         NativePropSel;
 
 		// Component + its props
 		TArray<TSharedPtr<SPinVarPanel::FCompOption>> CompOpts;
 		TSharedPtr<SPinVarPanel::FCompOption>         CompSel;
-		TArray<TSharedPtr<FName>> CompPropOpts;
-		TSharedPtr<SComboBox<TSharedPtr<FName>>> CompPropCombo;
-		TSharedPtr<FName>         CompPropSel;
+		TArray<TSharedPtr<FName>>                     CompPropOpts;
+		TSharedPtr<SComboBox<TSharedPtr<FName>>>      CompPropCombo;
+		TSharedPtr<FName>                             CompPropSel;
 
 		// Group input
 		FString GroupStr;
 	};
 	TSharedRef<FState> S = MakeShared<FState>();
-	S->BP = BP;
+	S->BP    = BP;
 	S->Class = TargetClass;
 
-	// Populate local variables
-	TArray<FName> Tmp;
-	GatherLocalVars(BP, Tmp);
-	for (const FName& N : Tmp) S->LocalVarOpts.Add(MakeShared<FName>(N));
-	if (S->LocalVarOpts.Num()) S->LocalVarSel = S->LocalVarOpts[0];
+	// --- Populate choices ---
 
-	Tmp.Reset();
-	GatherNativeProps(TargetClass, Tmp);
-	for (const FName& N : Tmp) S->NativePropOpts.Add(MakeShared<FName>(N));
-	if (S->NativePropOpts.Num()) S->NativePropSel = S->NativePropOpts[0];
+	// Local BP variables
+	{
+		TArray<FName> Tmp;
+		GatherLocalVars(BP, Tmp);
+		for (const FName& N : Tmp) S->LocalVarOpts.Add(MakeShared<FName>(N));
+		if (S->LocalVarOpts.Num()) S->LocalVarSel = S->LocalVarOpts[0];
+	}
 
-	// Components: from CDO subobjects + SCS mapping
+	// Parent C++ properties
+	{
+		TArray<FName> Tmp;
+		GatherNativeProps(TargetClass, Tmp);
+		for (const FName& N : Tmp) S->NativePropOpts.Add(MakeShared<FName>(N));
+		if (S->NativePropOpts.Num()) S->NativePropSel = S->NativePropOpts[0];
+	}
+
+	// Component options (CDO + SCS, each option carries a weak template ptr)
 	BuildComponentOptions(BP, TargetClass, S->CompOpts);
 	if (S->CompOpts.Num())
 	{
 		S->CompSel = S->CompOpts[0];
 	}
-	// First component's props (use exact TemplateName + log)
+
+	// Initial component property list (prefer weak ptr; fallback to FindComponentTemplate)
 	if (S->CompSel.IsValid())
 	{
-		if (UObject* Template = FindComponentTemplate(S->Class, S->CompSel->TemplateName))
+		UActorComponent* Template =
+			S->CompSel->Template.IsValid()
+				? S->CompSel->Template.Get()
+				: Cast<UActorComponent>(FindComponentTemplate(S->Class, S->CompSel->TemplateName));
+
+		if (Template)
 		{
-			TArray<FName> P;
-			GatherComponentPropsByTemplate(Template, P);
-			for (const FName& N : P) S->CompPropOpts.Add(MakeShared<FName>(N));
+			TArray<FName> Props;
+			GatherComponentPropsByTemplate(Template, Props);
+			for (const FName& N : Props) S->CompPropOpts.Add(MakeShared<FName>(N));
 			if (S->CompPropOpts.Num()) S->CompPropSel = S->CompPropOpts[0];
-
-			// make the dropdown aware of the new items
-			if (S->CompPropCombo.IsValid())
-			{
-				S->CompPropCombo->RefreshOptions();
-				S->CompPropCombo->SetSelectedItem(S->CompPropSel);
-			}
-
-			UE_LOG(LogTemp, Log, TEXT("PinVar: (init) Component '%s' resolved to '%s' and offers %d props"),
-				*S->CompSel->Label.ToString(), *S->CompSel->TemplateName.ToString(), S->CompPropOpts.Num());
-
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("PinVar: (init) Template not found for '%s' (template key '%s') on %s"),
+			UE_LOG(LogTemp, Warning, TEXT("PinVar: (init) Template not found for '%s' (key '%s') on %s"),
 				*S->CompSel->Label.ToString(), *S->CompSel->TemplateName.ToString(), *S->Class->GetName());
 		}
 	}
-	
-	// Build dialog
+
+	// --- Build dialog UI ---
+
 	TSharedRef<SWindow> Dialog = SNew(SWindow)
 		.Title(FText::FromString(TEXT("Add Variable to Group")))
 		.SupportsMaximize(false)
 		.SupportsMinimize(false)
 		.ClientSize(FVector2D(520, 380));
 
+	AddVariableWindow = Dialog;
 	auto MakeNameCombo = [](TArray<TSharedPtr<FName>>& Source, TSharedPtr<FName>& Sel, TFunction<void(TSharedPtr<FName>)> OnSel)
 	{
 		return SNew(SComboBox<TSharedPtr<FName>>)
 			.OptionsSource(&Source)
 			.OnGenerateWidget_Lambda([](TSharedPtr<FName> It)
 			{
-				return SNew(STextBlock).Text(FText::FromName(It.IsValid()? *It : NAME_None));
+				return SNew(STextBlock).Text(FText::FromName(It.IsValid() ? *It : NAME_None));
 			})
 			.OnSelectionChanged_Lambda([&Sel, OnSel](TSharedPtr<FName> NewSel, ESelectInfo::Type)
 			{
@@ -607,7 +781,7 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 				SNew(STextBlock)
 				.Text_Lambda([&Sel]()
 				{
-					return Sel.IsValid()? FText::FromName(*Sel) : FText::FromString(TEXT("None"));
+					return Sel.IsValid() ? FText::FromName(*Sel) : FText::FromString(TEXT("None"));
 				})
 			];
 	};
@@ -673,26 +847,27 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 
 					if (S->Class && S->CompSel.IsValid())
 					{
-						if (UObject* Tmpl = FindComponentTemplate(S->Class, S->CompSel->TemplateName))
+						UActorComponent* Tmpl =
+							S->CompSel->Template.IsValid()
+								? S->CompSel->Template.Get()
+								: Cast<UActorComponent>(FindComponentTemplate(S->Class, S->CompSel->TemplateName));
+
+						if (Tmpl)
 						{
 							TArray<FName> P;
 							GatherComponentPropsByTemplate(Tmpl, P);
 							for (const FName& N : P) S->CompPropOpts.Add(MakeShared<FName>(N));
-								if (S->CompPropOpts.Num()) S->CompPropSel = S->CompPropOpts[0];
+							if (S->CompPropOpts.Num()) S->CompPropSel = S->CompPropOpts[0];
 
-								if (S->CompPropCombo.IsValid())
-								{
-									S->CompPropCombo->RefreshOptions();
-									S->CompPropCombo->SetSelectedItem(S->CompPropSel);
-								}
-
-								UE_LOG(LogTemp, Log, TEXT("PinVar: Component '%s' resolved to '%s' -> %d props"),
-									*S->CompSel->Label.ToString(), *S->CompSel->TemplateName.ToString(), S->CompPropOpts.Num());
-
+							if (S->CompPropCombo.IsValid())
+							{
+								S->CompPropCombo->RefreshOptions();
+								S->CompPropCombo->SetSelectedItem(S->CompPropSel);
+							}
 						}
 						else
 						{
-							UE_LOG(LogTemp, Warning, TEXT("PinVar: Template not found for '%s' (template key '%s') on %s"),
+							UE_LOG(LogTemp, Warning, TEXT("PinVar: Template not found for '%s' (key '%s') on %s"),
 								*S->CompSel->Label.ToString(), *S->CompSel->TemplateName.ToString(), *S->Class->GetName());
 						}
 					}
@@ -712,7 +887,7 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0,2,0,0)
 			[
-				SNew(SComboBox<TSharedPtr<FName>>)
+				SAssignNew(S->CompPropCombo, SComboBox<TSharedPtr<FName>>)
 				.OptionsSource(&S->CompPropOpts)
 				.OnGenerateWidget_Lambda([](TSharedPtr<FName> It)
 				{
@@ -736,7 +911,7 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 		// Group
 		+ SVerticalBox::Slot().AutoHeight().Padding(12,10,12,8)
 		[
-			SNew(STextBlock).Text(FText::FromString("Group Name (A or A|B):"))
+			SNew(STextBlock).Text(FText::FromString("Group Name (A or A,B):"))
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(12,0,12,12)
 		[
@@ -757,49 +932,90 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 				.OnClicked_Lambda([this, S, Dialog]()
 				{
 					if (!GEditor) { Dialog->RequestDestroyWindow(); return FReply::Handled(); }
-					if (!S->Class || S->GroupStr.IsEmpty()) { Dialog->RequestDestroyWindow(); return FReply::Handled(); }
+					if (!S->Class) { Dialog->RequestDestroyWindow(); return FReply::Handled(); }
+
+					// Accept empty group -> "Default"
+					FString GroupCsv = S->GroupStr.TrimStartAndEnd();
+					if (GroupCsv.IsEmpty())
+					{
+						GroupCsv = TEXT("Default");
+					}
 
 					FName VarName = NAME_None;
 					FName CompName = NAME_None;
 
-					if (S->SourceIndex == 0 && S->LocalVarSel.IsValid())
+					switch (S->SourceIndex)
 					{
-						VarName = *S->LocalVarSel;
-					}
-					else if (S->SourceIndex == 1 && S->NativePropSel.IsValid())
-					{
-						VarName = *S->NativePropSel;
-					}
-					else if (S->SourceIndex == 2 && S->CompSel.IsValid() && S->CompPropSel.IsValid())
-					{
-						CompName = S->CompSel->TemplateName; 
-						VarName  = *S->CompPropSel;
+						case 0: // Blueprint local
+							if (S->LocalVarSel.IsValid()) VarName = *S->LocalVarSel;
+							break;
+
+						case 1: // Parent C++
+							if (S->NativePropSel.IsValid()) VarName = *S->NativePropSel;
+							break;
+
+						case 2: // Component
+							if (S->CompSel.IsValid() && S->CompPropSel.IsValid())
+							{
+								// Resolve template: weak ptr from option, or fallback by name
+								UActorComponent* Tmpl =
+									S->CompSel->Template.IsValid()
+										? S->CompSel->Template.Get()
+										: Cast<UActorComponent>(FindComponentTemplate(S->Class, S->CompSel->TemplateName));
+
+								// We'll persist the template name (use live one if we have it), and cache the object for this session
+								const FName TemplateKey = Tmpl ? Tmpl->GetFName() : S->CompSel->TemplateName;
+								const FName PrettyVar   = S->CompSel->Label; // SCS variable name (nice label)
+								VarName = *S->CompPropSel;
+
+								if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
+								{
+									TArray<FString> Groups;
+									GroupCsv.ParseIntoArray(Groups, TEXT(","), true);
+									for (FString& G : Groups)
+									{
+										G = G.TrimStartAndEnd();
+										if (G.IsEmpty()) continue;
+										
+										Subsystem->StagePinVariableWithTemplate(
+											S->Class->GetFName(), VarName, FName(*G),
+											TemplateKey, Tmpl, PrettyVar);
+									}
+
+									Subsystem->SaveToDisk();
+									Subsystem->MergeStagedIntoPinned();
+								}
+
+								Refresh();
+								return FReply::Handled();
+							}
+							break;
 					}
 
 					if (VarName.IsNone())
 					{
+						UE_LOG(LogTemp, Warning, TEXT("PinVar: Add aborted — no variable selected."));
 						Dialog->RequestDestroyWindow();
 						return FReply::Handled();
 					}
 
-					UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>();
-					if (Subsystem)
+					if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
 					{
-						FString Norm = S->GroupStr; 
-						TArray<FString> Groups; Norm.ParseIntoArray(Groups, TEXT(","), true);
+						TArray<FString> Groups;
+						GroupCsv.ParseIntoArray(Groups, TEXT(","), /*CullEmpty*/true);
 						for (FString& G : Groups)
 						{
 							G = G.TrimStartAndEnd();
 							if (!G.IsEmpty())
 							{
 								Subsystem->StagePinVariable(S->Class->GetFName(), VarName, FName(*G), CompName);
+								
 							}
 						}
 						Subsystem->SaveToDisk();
 					}
 
 					Refresh();
-					Dialog->RequestDestroyWindow();
 					return FReply::Handled();
 				})
 			]
@@ -819,137 +1035,8 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 	FSlateApplication::Get().AddWindow(Dialog);
 }
 
-FReply SPinVarPanel::OnRemoveBlueprintVariableClicked()
-{
-	ShowRemoveStagedDialog();
-	return FReply::Handled();
-}
 
-void SPinVarPanel::ShowRemoveStagedDialog()
-{
-	if (!GEditor) return;
-	UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>();
-	if (!Subsystem) return;
 
-	struct FRemoveState : public TSharedFromThis<FRemoveState>
-	{
-		struct FItem
-		{
-			FName ClassName;
-			FName VarName;
-			FName GroupName;
-			FName CompName;
-			FString Label;
-		};
-		TArray<TSharedPtr<FItem>> Items;
-		TSharedPtr<FItem> Selected;
-	};
-	TSharedRef<FRemoveState> State = MakeShared<FRemoveState>();
-
-	{
-		TArray<TTuple<FName,FName,FName,FName>> Quads;
-		Subsystem->GetAllStagedWithComp(Quads);
-
-		if (Quads.Num() == 0)
-		{
-			FMessageDialog::Open(EAppMsgType::Ok, FText::FromString(TEXT("No staged variables to remove.")));
-			return;
-		}
-
-		State->Items.Reserve(Quads.Num());
-		for (const auto& Q : Quads)
-		{
-			const FName ClassName = Q.Get<0>();
-			const FName VarName   = Q.Get<1>();
-			const FName GroupName = Q.Get<2>();
-			const FName CompName  = Q.Get<3>();
-
-			FString ClassStr = ClassName.ToString();
-			if (UClass* C = FindFirstObjectSafe<UClass>(*ClassStr))
-			{
-				ClassStr = C->GetName();
-			}
-
-			auto Item = MakeShared<FRemoveState::FItem>();
-			Item->ClassName = ClassName;
-			Item->VarName   = VarName;
-			Item->GroupName = GroupName;
-			Item->CompName  = CompName;
-			Item->Label     = CompName.IsNone()
-				? FString::Printf(TEXT("%s :: %s  —  %s"), *ClassStr, *VarName.ToString(), *GroupName.ToString())
-				: FString::Printf(TEXT("%s[%s] :: %s  —  %s"), *ClassStr, *CompName.ToString(), *VarName.ToString(), *GroupName.ToString());
-			State->Items.Add(Item);
-		}
-		State->Selected = State->Items[0];
-	}
-
-	TSharedRef<SWindow> Dialog = SNew(SWindow)
-		.Title(FText::FromString(TEXT("Remove Staged Variable")))
-		.SupportsMaximize(false)
-		.SupportsMinimize(false)
-		.ClientSize(FVector2D(600, 200));
-
-	Dialog->SetContent(
-		SNew(SVerticalBox)
-		+ SVerticalBox::Slot().AutoHeight().Padding(12,10,12,8)
-		[ SNew(STextBlock).Text(FText::FromString(TEXT("Select an entry to remove:"))) ]
-		+ SVerticalBox::Slot().AutoHeight().Padding(12,0,12,8)
-		[
-			SNew(SComboBox<TSharedPtr<FRemoveState::FItem>>)
-			.OptionsSource(&State->Items)
-			.OnGenerateWidget_Lambda([](TSharedPtr<FRemoveState::FItem> In)
-			{
-				return SNew(STextBlock).Text(FText::FromString(In.IsValid()? In->Label : TEXT("")));
-			})
-			.OnSelectionChanged_Lambda([State](TSharedPtr<FRemoveState::FItem> In, ESelectInfo::Type)
-			{
-				State->Selected = In;
-			})
-			.InitiallySelectedItem(State->Selected)
-			[
-				SNew(STextBlock)
-				.Text_Lambda([State]()
-				{
-					return FText::FromString(State->Selected.IsValid()? State->Selected->Label : TEXT(""));
-				})
-			]
-		]
-		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(12,0,12,12)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth().Padding(0,0,8,0)
-			[
-				SNew(SButton)
-				.ButtonStyle(FAppStyle::Get(), "Button")
-				.ForegroundColor(FLinearColor::Red)
-				.Text(FText::FromString(TEXT("Remove")))
-				.OnClicked_Lambda([this, Dialog, State, Subsystem]() -> FReply
-				{
-					if (State->Selected.IsValid())
-					{
-						Subsystem->UnstagePinVariable(State->Selected->ClassName,
-							State->Selected->VarName, State->Selected->GroupName, State->Selected->CompName);
-						Refresh();
-					}
-					Dialog->RequestDestroyWindow();
-					return FReply::Handled();
-				})
-			]
-			+ SHorizontalBox::Slot().AutoWidth()
-			[
-				SNew(SButton)
-				.Text(FText::FromString(TEXT("Cancel")))
-				.OnClicked_Lambda([Dialog]() -> FReply
-				{
-					Dialog->RequestDestroyWindow();
-					return FReply::Handled();
-				})
-			]
-		]
-	);
-
-	FSlateApplication::Get().AddWindow(Dialog);
-}
 
 
 void SPinVarPanel::GatherLocalVars(UBlueprint* BP, TArray<FName>& OutVars) const

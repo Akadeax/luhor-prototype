@@ -10,7 +10,4 @@ UCLASS()
 class LUHORPROTOTYPE_API ALuhorPlayerCharacter : public ALuhorCharacter
 {
 	GENERATED_BODY()
-	private:
-	UPROPERTY(EditAnywhere)
-		int temp{5};
 };

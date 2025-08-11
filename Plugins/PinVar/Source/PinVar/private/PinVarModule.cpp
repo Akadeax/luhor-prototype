@@ -86,7 +86,6 @@ void FPinVarModule::ScanPinnedVariables()
 		// Source of truth = JSON (staged). We show staged immediately.
 		Subsystem->LoadFromDisk();            // refresh staged
 		Subsystem->MergeStagedIntoPinned();   // mirror for display
-		UE_LOG(LogTemp, Log, TEXT("PinVar: Refreshed from disk."));
 	}
 }
 

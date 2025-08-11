@@ -25,8 +25,6 @@ private:
 	// Toolbar actions
 	FReply OnAddBlueprintVariableClicked();
 	void   OnBlueprintPicked(const FAssetData& AssetData);
-	FReply OnRemoveBlueprintVariableClicked();
-	void   ShowRemoveStagedDialog();
 
 	// Unified “Add” dialog (Blueprint local / Parent C++ / Component)
 	void ShowAddDialog(UBlueprint* BP);
@@ -40,6 +38,7 @@ private:
 	void Rebuild();
 	void GatherPinnedProperties();
 
+	FReply OnRemovePinned(FName ClassName, FName VarName, FName GroupName, FName CompName);
 	// Small utils
 	static bool IsSkelOrReinst(const UClass* C);
 	static bool IsEditableProperty(const FProperty* P);
@@ -51,12 +50,19 @@ private:
 	struct FEntry { FName Group; TSharedRef<SWidget> Widget; };
 	TMap<FName, TArray<FEntry>> Grouped;
 
-	// ----- Add dialog state helpers -----
+	// Track currently open popups so we can close them when needed
+	TWeakPtr<class SWindow> SelectBlueprintWindow;
+	TWeakPtr<class SWindow> AddVariableWindow;
+
+	//add stuff to allow groups to remain open between 
+	TMap<FName, bool> GroupExpandedState;
+	TMap<FName, TWeakPtr<class SExpandableArea>> GroupAreaWidgets;
 public:
-	// Component option shown in the Add dialog
+	
 	struct FCompOption
 	{
-		FName Label;        // Friendly label (e.g., AmbrosiaHealth)
-		FName TemplateName; // Exact CDO subobject name (e.g., AmbrosiaHealth_GEN_VARIABLE)
+		FName Label;
+		FName TemplateName;
+		TWeakObjectPtr<UActorComponent> Template;
 	};
 };
