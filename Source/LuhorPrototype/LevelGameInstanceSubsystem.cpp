@@ -15,6 +15,15 @@ void ULevelGameInstanceSubsystem::Initialize(FSubsystemCollectionBase& Collectio
 
 void ULevelGameInstanceSubsystem::LoadRandomLevel()
 {
-	const int index{ FMath::RandRange(0, RoomData->Rooms.Num() - 1) };
-	UGameplayStatics::OpenLevel(GetWorld(), RoomData->Rooms[index].Level.GetLongPackageFName());
+	if (RoomsLeft.Num() == 0) RefillRoomsLeft();
+	
+	const int index{ FMath::RandRange(0, RoomsLeft.Num() - 1) };
+	UGameplayStatics::OpenLevel(GetWorld(), RoomsLeft[index].Level.GetLongPackageFName());
+
+	RoomsLeft.RemoveAt(index);
+}
+
+void ULevelGameInstanceSubsystem::RefillRoomsLeft()
+{
+	RoomsLeft = RoomData->Rooms;
 }

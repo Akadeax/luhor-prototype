@@ -22,5 +22,9 @@ public:
 	void LoadRandomLevel();
 	
 private:
+	void RefillRoomsLeft();
+	
 	UPROPERTY() TObjectPtr<URoomData> RoomData;
+	TArray<FRoom> RoomsLeft;
+	
 };
