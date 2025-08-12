@@ -2,15 +2,15 @@
 setlocal EnableDelayedExpansion
 
 REM =============================
-REM Step 1: Locate UE5.5 Installation Directory via Registry
+REM Step 1: Locate UE5.6 Installation Directory via Registry
 REM =============================
 set "UE_INSTALL_DIR="
-for /f "tokens=2*" %%A in ('reg query "HKLM\SOFTWARE\EpicGames\Unreal Engine\5.5" /v InstalledDirectory 2^>nul') do (
+for /f "tokens=2*" %%A in ('reg query "HKLM\SOFTWARE\EpicGames\Unreal Engine\5.6" /v InstalledDirectory 2^>nul') do (
     set "UE_INSTALL_DIR=%%B"
 )
 
 if "%UE_INSTALL_DIR%"=="" (
-    echo ERROR: Unreal Engine 5.5 installation not found in registry.
+    echo ERROR: Unreal Engine 5.6 installation not found in registry.
     pause
     exit /b 1
 )
