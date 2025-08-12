@@ -2,6 +2,7 @@
 
 #include "RangedAttackerComponent.h"
 
+#include "Upgrades/UpgradesComponent.h"
 #include "Util/ComponentUtil.h"
 #include "Util/FDebugUtil.h"
 
@@ -16,7 +17,7 @@ bool URangedAttackerComponent::TryAttack()
 	{
 		return false;
 	}
-
+	
 	DoWindup();
 	return true;
 }
@@ -115,6 +116,12 @@ void URangedAttackerComponent::SpawnProjectile()
 		RangedAttack->AttackData.ProjectileClass, GetOwner()->GetActorLocation(), rot
 	) };
 	check(proj);
+	if (UUpgradesComponent* Upgrades = Cast<UUpgradesComponent>(GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass())))
+	{
+		FStatModifier modifiers{Upgrades->GetCurrentModifier()};
+		RangedAttack->AttackData.Damage += modifiers.RangedAttackModifier;
+		RangedAttack->AttackData.Damage *= modifiers.RangedAttackMultiplier;
+	}
 
 	proj->InitializeProjectile({ RangedAttack, Faction, GetOwner(), GetForwardVector().Rotation() });
 

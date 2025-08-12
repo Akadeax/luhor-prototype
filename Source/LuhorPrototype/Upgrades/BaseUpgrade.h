@@ -1,35 +1,51 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// BaseUpgrade.h
 #pragma once
 
 #include "CoreMinimal.h"
+#include "UObject/Object.h"
 #include "UpgradesComponent.h"
-#include "Interfaces/IPluginManager.h"
+#include "LuhorPrototype/LuhorCharacter.h"
+#include "LuhorPrototype/LuhorPlayerCharacter.h"
 #include "LuhorPrototype/Util/FDebugUtil.h"
+#include "BaseUpgrade.generated.h"
 
-/**
- *
- */
-class LUHORPROTOTYPE_API BaseUpgrade
+UCLASS(BlueprintType, Blueprintable)
+class LUHORPROTOTYPE_API UBaseUpgrade : public UObject
 {
+	GENERATED_BODY()
+
 public:
-	BaseUpgrade(StatModifier mod)
+	UBaseUpgrade() = default;
+	virtual ~UBaseUpgrade() override = default;
+	virtual void Init (){}
+
+	UFUNCTION(BlueprintCallable)
+	void SetStatModifier(const FStatModifier& Mod) { Modifier = Mod; }
+
+	UFUNCTION(BlueprintPure)
+	FStatModifier GetStatModifier() const { return IsUpgradeActive ? Modifier : FStatModifier{}; }
+
+	UFUNCTION(BlueprintCallable)
+	void SetUpgradesComponent(UUpgradesComponent* Component)
 	{
-		Modifier = mod;
+		UpgradesComponent = Component;
+		PlayerCharacter = Cast<ALuhorPlayerCharacter>(UpgradesComponent->GetOwner());
+		Init();
 	}
-	~BaseUpgrade();
-	
-	StatModifier GetStatModifier() const {return  IsUpgradeActive ? Modifier : StatModifier{};}
-	void SetUpgradesComponent(UUpgradesComponent* Component){UpgradesComponent = Component;}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool IsUpgradeActive{ true };
 protected:
-	StatModifier Modifier{};
-	bool IsUpgradeActive{true};
-	UUpgradesComponent* UpgradesComponent{nullptr};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FStatModifier Modifier{};
 	
-	virtual void Trigger()
-	{
-		FDebugUtil::QuitCheckf(UpgradesComponent, TEXT("Upgrade doesn't have a pointer to the players upgradesComponent"));
-		UpgradesComponent->RecalculateModifier();
-	}
+	ALuhorPlayerCharacter* PlayerCharacter{ nullptr };
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString UpgradeText{TEXT("Upgrade does stuff")};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString UpgradeName{TEXT("Upgrade")};
+
+	UPROPERTY() 
+	UUpgradesComponent* UpgradesComponent{ nullptr };
 };
 

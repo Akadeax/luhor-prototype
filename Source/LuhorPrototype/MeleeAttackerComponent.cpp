@@ -6,6 +6,7 @@
 #include "LuhorMovementComponent.h"
 #include "Util/ComponentUtil.h"
 #include "Components/ShapeComponent.h"
+#include "Upgrades/UpgradesComponent.h"
 #include "Util/FDebugUtil.h"
 
 COMPDEP_IMPL_START(UMeleeAttackerComponent)
@@ -209,8 +210,12 @@ void UMeleeAttackerComponent::OnContactCollisionBeginOverlap(
 
 	const FMeleeAttackData& data{ GetCurrentAttack() };
 
-	const FHittableHitData hitData{ data.Damage, GetOwner(), Faction };
-	
+	FHittableHitData hitData{ data.Damage, GetOwner(), Faction };
+	if (UUpgradesComponent* Upgrades = Cast<UUpgradesComponent>(GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass())))
+	{
+		FStatModifier modifiers{Upgrades->GetCurrentModifier()};
+		hitData.Damage = (data.Damage+ modifiers.MeleeAttackModifier ) * modifiers.MeleeAttackMultiplier;
+	}
 	hittable->Hit(hitData);
 	OnMeleeAttackHit.Broadcast(hitData);
 }

@@ -3,16 +3,20 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ComponentDependencies.h"
 #include "HealthComponent.h"
+#include "Upgrades/UpgradesComponent.h"
 #include "AmbrosiaHealthComponent.generated.h"
 
 /**
  * 
  */
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class LUHORPROTOTYPE_API UAmbrosiaHealthComponent final : public UHealthComponent
+class LUHORPROTOTYPE_API UAmbrosiaHealthComponent final : public UHealthComponent ,public IComponentDependencies 
 {
 	GENERATED_BODY()
+	COMPDEP_DECL()
+	
 public:
 	UAmbrosiaHealthComponent()
 	{
@@ -67,4 +71,6 @@ public:
 	bool InLastStand{false};
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia" , meta = (ToolTip = "How much ambrosia the player needs to gather to get out of the last stand mode"))
 	float LastStandEndCutoff{5};
+
+	UUpgradesComponent *UpgradesComponent{nullptr};
 };

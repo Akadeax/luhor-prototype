@@ -13,24 +13,46 @@ UUpgradesComponent::UUpgradesComponent()
 	// ...
 }
 
-StatModifier UUpgradesComponent::GetCurrentModifier()
+FStatModifier UUpgradesComponent::GetCurrentModifier()
 {
 	return CurrentStats;
 }
 
-void UUpgradesComponent::AddUpgrade(BaseUpgrade* upgrade)
+void UUpgradesComponent::AddUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass)
 {
-	Upgrades.Add(upgrade);
-	upgrade->SetUpgradesComponent(this);
+	if (!*upgradeClass) return;
+
+	UBaseUpgrade* instance = NewObject<UBaseUpgrade>(this, upgradeClass);
+	instance->SetUpgradesComponent(this);
+	Upgrades.Add(instance);
 	RecalculateModifier();
 }
+
+void UUpgradesComponent::RemoveUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass)
+{
+	if (!*upgradeClass) return;
+
+	for (int32 i = Upgrades.Num() - 1; i >= 0; --i)
+	{
+		if (Upgrades[i] && Upgrades[i]->IsA(upgradeClass))
+		{
+			Upgrades.RemoveAt(i);
+		}
+	}
+
+	RecalculateModifier();
+}
+
 
 void UUpgradesComponent::RecalculateModifier()
 {
 	CurrentStats = {};
-	for (BaseUpgrade* upgrade : Upgrades)
+	for (UBaseUpgrade* upgrade : Upgrades)
 	{
-		CurrentStats += upgrade->GetStatModifier();
+		if (upgrade->IsUpgradeActive)
+		{
+			CurrentStats += upgrade->GetStatModifier();
+		}
 	}
 }
 

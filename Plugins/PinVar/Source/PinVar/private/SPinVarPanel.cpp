@@ -900,21 +900,42 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 			+ SVerticalBox::Slot().AutoHeight().Padding(0,2,0,0)
 			[
 				SAssignNew(S->CompPropCombo, SSearchableComboBox)
-				.OptionsSource(&S->CompPropOpts)
+				.OptionsSource(&S->CompPropOpts) // TArray<TSharedPtr<FString>>
 				.OnGenerateWidget_Lambda([](TSharedPtr<FString> It)
 				{
-					return SNew(STextBlock).Text(FText::FromString(It.IsValid()? *It : TEXT("None")));
+					return SNew(STextBlock).Text(FText::FromString(It.IsValid() ? *It : TEXT("None")));
 				})
-				.OnSelectionChanged_Lambda([S](TSharedPtr<FString> NewSel, ESelectInfo::Type)
+				.OnSelectionChanged_Lambda([S](TSharedPtr<FString> NewSel, ESelectInfo::Type Info)
 				{
+					// If Enter was pressed with no explicit row highlighted, pick first filtered option
+					if (!NewSel.IsValid() && S->CompPropOpts.Num() > 0)
+					{
+						NewSel = S->CompPropOpts[0];
+						if (S->CompPropCombo.IsValid())
+						{
+							S->CompPropCombo->SetSelectedItem(NewSel);
+						}
+					}
+
 					S->CompPropSel = NewSel;
+
+					// Close the dropdown when selection comes from keyboard (Enter/Navigation)
+					if (Info == ESelectInfo::OnKeyPress || Info == ESelectInfo::OnNavigation)
+					{
+						if (S->CompPropCombo.IsValid())
+						{
+							S->CompPropCombo->SetIsOpen(false);
+						}
+					}
 				})
 				.InitiallySelectedItem(S->CompPropSel)
 				[
 					SNew(STextBlock)
 					.Text_Lambda([S]()
 					{
-						return S->CompPropSel.IsValid()? FText::FromString(*S->CompPropSel) : FText::FromString(TEXT("None"));
+						return S->CompPropSel.IsValid()
+							? FText::FromString(*S->CompPropSel)
+							: FText::FromString(TEXT("None"));
 					})
 				]
 			]
@@ -973,6 +994,7 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
     [
         SNew(SButton)
         .IsEnabled_Lambda([S](){ return S->ExistingGroupSel.IsValid() && !S->ExistingGroupSel->IsEmpty(); })
+    	.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
         .Text(FText::FromString("Add to existing group"))
         .OnClicked_Lambda([this, S]()
         {

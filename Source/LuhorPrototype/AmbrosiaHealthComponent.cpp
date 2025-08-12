@@ -3,19 +3,35 @@
 
 #include "AmbrosiaHealthComponent.h"
 
+#include "Upgrades/UpgradesComponent.h"
+#include "Util/FDebugUtil.h"
+COMPDEP_IMPL_START(UAmbrosiaHealthComponent)
+	COMPDEP_DEP_AnyOnActorOptional(UUpgradesComponent)
+COMPDEP_IMPL_END
 
 void UAmbrosiaHealthComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	CurrentHealth = StartingAmbrosia;
+	UpgradesComponent = Cast<UUpgradesComponent>(GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass()));
+	FDebugUtil::QuitCheckf(UpgradesComponent, nullptr, "Couldn't find the UpgradesComponent");
 }
 
 void UAmbrosiaHealthComponent::TickComponent(float DeltaTime, ELevelTick TickType,
                                              FActorComponentTickFunction* ThisTickFunction)
 {
+	
 	if (!InLastStand)
 	{
-		CurrentHealth -= DeltaTime * PassiveAmbrosiaDrain;
+		
+		CurrentHealth -= DeltaTime * PassiveAmbrosiaDrain * UpgradesComponent->GetCurrentModifier().AmbrosiaDrainMultiplier;
+		
+		if (UUpgradesComponent* Upgrades = Cast<UUpgradesComponent>(GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass())))
+		{
+			FStatModifier modifier{Upgrades->GetCurrentModifier()};
+			CurrentHealth -= DeltaTime * PassiveAmbrosiaDrain * modifier.AmbrosiaDrainMultiplier;
+		}
+		
 		OnDamaged.Broadcast();
 		if (CurrentHealth <= 0)
 		{
@@ -49,7 +65,9 @@ void UAmbrosiaHealthComponent::Damage(float Amount)
 
 void UAmbrosiaHealthComponent::SiphonAmbrosia(float Amount)
 {
-	float SiphonAmount = Amount * (SiphonPercentage/100);
+	
+	float SiphonAmount = Amount * (SiphonPercentage/100) * UpgradesComponent->GetCurrentModifier().SiphonSpeedMultiplier;
+	
 	if (CurrentHealth / MaxHealth > SpecialChargeCutoff)
 	{
 		float HalfSiphon = SiphonAmount / 2;

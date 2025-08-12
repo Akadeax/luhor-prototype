@@ -6,19 +6,34 @@
 #include "Components/ActorComponent.h"
 #include "UpgradesComponent.generated.h"
 
-class BaseUpgrade;
+class UBaseUpgrade;
 
-struct StatModifier
+USTRUCT(BlueprintType)
+struct FStatModifier
 {
-	float AttackModifier = 0;
-	float AttackMultiplier = 1;
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float MeleeAttackModifier = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float MeleeAttackMultiplier = 1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float RangedAttackModifier = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float RangedAttackMultiplier = 1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float AmbrosiaDrainMultiplier = 1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float SiphonSpeedMultiplier = 1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float DefenseMultiplier = 1;
 	
-	StatModifier& operator+=(const StatModifier& other) {
-		AttackModifier += other.AttackModifier;
-		AttackMultiplier *= other.AttackMultiplier;
+	FStatModifier& operator+=(const FStatModifier& other) {
+		MeleeAttackModifier += other.MeleeAttackModifier;
+		MeleeAttackMultiplier *= other.MeleeAttackMultiplier;
+		RangedAttackModifier += other.RangedAttackModifier;
+		RangedAttackMultiplier *= other.RangedAttackMultiplier;
 		AmbrosiaDrainMultiplier *= other.AmbrosiaDrainMultiplier;
+		SiphonSpeedMultiplier *= other.SiphonSpeedMultiplier;
 		DefenseMultiplier *= other.DefenseMultiplier;
 		return *this;
 	}
@@ -33,12 +48,16 @@ public:
 	UUpgradesComponent();
 	// Called every frame
 	void RecalculateModifier();
-	StatModifier GetCurrentModifier();
-	void AddUpgrade(BaseUpgrade* upgrade);
+	FStatModifier GetCurrentModifier();
+	
+	UFUNCTION(BlueprintCallable)
+	void AddUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass);
+	UFUNCTION(BlueprintCallable)
+	void RemoveUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass);
 protected:
 	// Called when the game starts
 
-	StatModifier CurrentStats{};
+	FStatModifier CurrentStats{};
 	
-	TArray<BaseUpgrade*> Upgrades;
+	TArray<UBaseUpgrade*> Upgrades;
 };
