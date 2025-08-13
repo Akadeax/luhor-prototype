@@ -11,7 +11,6 @@
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SComboBox.h"
 #include "SSearchableComboBox.h"
-#include "Widgets/Input/SSuggestionTextBox.h"
 
 #include "Widgets/Input/SSegmentedControl.h"
 #include "Framework/Application/SlateApplication.h"
@@ -33,10 +32,12 @@
 #include "Engine/BlueprintGeneratedClass.h"
 #include "IDetailsView.h"
 #include "IStructureDetailsView.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "UObject/StructOnScope.h"
+#include "Engine/Blueprint.h"
 
 // Simple structs that should stay SinglePropertyView (no dropdown header)
-static bool IsSimpleStruct(const UScriptStruct* SS)
+bool SPinVarPanel::IsSimpleStruct(const UScriptStruct* SS)
 {
 	return SS == TBaseStructure<FVector>::Get()
 		|| SS == TBaseStructure<FVector2D>::Get()
@@ -45,6 +46,103 @@ static bool IsSimpleStruct(const UScriptStruct* SS)
 		|| SS == TBaseStructure<FQuat>::Get()
 		|| SS == TBaseStructure<FLinearColor>::Get()
 		|| SS == TBaseStructure<FColor>::Get();
+}
+
+
+UClass* SPinVarPanel::ResolveGeneratedClassByShortName()
+{
+	const FString InName = ClassName.ToString();
+	const FString WantedGenName = InName.EndsWith(TEXT("_C")) ? InName : (InName + TEXT("_C"));
+
+	// Already loaded?
+	if (UClass* C = FindFirstObjectSafe<UClass>(*WantedGenName))
+	{
+		return C;
+	}
+
+	FAssetRegistryModule& ARM = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	FARFilter Filter;
+	Filter.bRecursiveClasses = true;
+	Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+
+	TArray<FAssetData> Assets;
+	ARM.Get().GetAssets(Filter, Assets);
+
+	for (const FAssetData& AD : Assets)
+	{
+		// UE5 tag: GeneratedClassPath (string form works across versions)
+		FString PathStr;
+		if (AD.GetTagValue(FBlueprintTags::GeneratedClassPath, PathStr) && !PathStr.IsEmpty())
+		{
+			if (FPackageName::ObjectPathToObjectName(PathStr) == WantedGenName)
+			{
+				UClass* C = FindObject<UClass>(nullptr, *PathStr);
+				if (!C) { C = LoadObject<UClass>(nullptr, *PathStr); }
+				if (C) { return C; }
+			}
+		}
+		// Fallback: load BP and use its GeneratedClass
+		if (UObject* Obj = AD.GetAsset())
+		{
+			if (UBlueprint* BP = Cast<UBlueprint>(Obj))
+			{
+				if (BP->GeneratedClass && BP->GeneratedClass->GetName() == WantedGenName)
+				{
+					return BP->GeneratedClass;
+				}
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+bool SPinVarPanel::IsComplexStructContainer(const FProperty* P)
+{
+	if (!P) return false;
+
+	if (const FArrayProperty* AP = CastField<FArrayProperty>(P))
+	{
+		if (const FStructProperty* SP = CastField<FStructProperty>(AP->Inner))
+		{
+			return SP->Struct && !SP->Struct->IsChildOf(TBaseStructure<FVector>::Get())
+				&& !SP->Struct->IsChildOf(TBaseStructure<FVector2D>::Get())
+				&& !SP->Struct->IsChildOf(TBaseStructure<FRotator>::Get())
+				&& !SP->Struct->IsChildOf(TBaseStructure<FQuat>::Get())
+				&& !SP->Struct->IsChildOf(TBaseStructure<FLinearColor>::Get())
+				&& !SP->Struct->IsChildOf(TBaseStructure<FColor>::Get());
+		}
+		return false;
+	}
+
+	if (const FSetProperty* SetP = CastField<FSetProperty>(P))
+	{
+		if (const FStructProperty* SP = CastField<FStructProperty>(SetP->ElementProp))
+		{
+			return SP->Struct && !IsSimpleStruct(SP->Struct);
+		}
+		return false;
+	}
+
+	if (const FMapProperty* MP = CastField<FMapProperty>(P))
+	{
+		const FStructProperty* KeySP = CastField<FStructProperty>(MP->KeyProp);
+		const FStructProperty* ValSP = CastField<FStructProperty>(MP->ValueProp);
+		const bool bKeyComplex = KeySP && KeySP->Struct && !IsSimpleStruct(KeySP->Struct);
+		const bool bValComplex = ValSP && ValSP->Struct && !IsSimpleStruct(ValSP->Struct);
+		return bKeyComplex || bValComplex;
+	}
+
+	return false;
+}
+
+bool SPinVarPanel::IsContainerProperty(const FProperty* P)
+{
+	return P
+		&& (P->IsA(FArrayProperty::StaticClass())
+			|| P->IsA(FMapProperty::StaticClass())
+			|| P->IsA(FSetProperty::StaticClass()));
 }
 
 UObject* SPinVarPanel::FindComponentTemplate(UClass* Class, FName TemplateName)
@@ -59,7 +157,7 @@ UObject* SPinVarPanel::FindComponentTemplate(UClass* Class, FName TemplateName)
 		if (UObject* CDO = C->GetDefaultObject(true))
 		{
 			if (UObject* T = CDO->GetDefaultSubobjectByName(TemplateName)) return T;
-			if (UObject* T2 = CDO->GetDefaultSubobjectByName(Alt))         return T2;
+			if (UObject* T2 = CDO->GetDefaultSubobjectByName(Alt)) return T2;
 
 			TArray<UObject*> Subs;
 			GetObjectsWithOuter(CDO, Subs, true);
@@ -90,7 +188,7 @@ UObject* SPinVarPanel::FindComponentTemplate(UClass* Class, FName TemplateName)
 	return nullptr;
 }
 
-void SPinVarPanel::BuildComponentOptions(UBlueprint* BP, UClass* Class,TArray<TSharedPtr<FCompOption>>& Out)
+void SPinVarPanel::BuildComponentOptions(UBlueprint* BP, UClass* Class, TArray<TSharedPtr<FCompOption>>& Out)
 {
 	Out.Reset();
 	if (!Class) return;
@@ -114,9 +212,9 @@ void SPinVarPanel::BuildComponentOptions(UBlueprint* BP, UClass* Class,TArray<TS
 				Seen.Add(TmplName);
 
 				TSharedRef<FCompOption> Opt = MakeShared<SPinVarPanel::FCompOption>();
-				Opt->Label        = TmplName;   
-				Opt->TemplateName = TmplName;   
-				Opt->Template     = Comp;       
+				Opt->Label = TmplName;
+				Opt->TemplateName = TmplName;
+				Opt->Template = Comp;
 				Out.Add(Opt);
 			}
 		}
@@ -130,7 +228,7 @@ void SPinVarPanel::BuildComponentOptions(UBlueprint* BP, UClass* Class,TArray<TS
 		if (!OwnerBP) continue;
 		USimpleConstructionScript* SCS = OwnerBP->SimpleConstructionScript;
 		if (!SCS) continue;
-		
+
 		for (USCS_Node* Node : SCS->GetAllNodes())
 		{
 			if (!Node || !C) return;
@@ -141,8 +239,9 @@ void SPinVarPanel::BuildComponentOptions(UBlueprint* BP, UClass* Class,TArray<TS
 			}
 
 			const FName Pretty = Node->GetVariableName();
-			FName TemplateKey = ActualTemplate ? ActualTemplate->GetFName()
-											   : FName(*(Pretty.ToString() + TEXT("_GEN_VARIABLE")));
+			FName TemplateKey = ActualTemplate
+				                    ? ActualTemplate->GetFName()
+				                    : FName(*(Pretty.ToString() + TEXT("_GEN_VARIABLE")));
 
 			for (auto& Opt : Out)
 			{
@@ -159,9 +258,9 @@ void SPinVarPanel::BuildComponentOptions(UBlueprint* BP, UClass* Class,TArray<TS
 			{
 				Seen.Add(TemplateKey);
 				TSharedRef<FCompOption> Opt = MakeShared<SPinVarPanel::FCompOption>();
-				Opt->Label        = Pretty;
+				Opt->Label = Pretty;
 				Opt->TemplateName = TemplateKey;
-				Opt->Template     = ActualTemplate; // may be null (rare)
+				Opt->Template = ActualTemplate; // may be null (rare)
 				Out.Add(Opt);
 			}
 		}
@@ -280,7 +379,7 @@ void SPinVarPanel::Rebuild()
 	if (Grouped.Num() == 0)
 	{
 		RootBox->AddSlot()
-		.AutoHeight()
+		       .AutoHeight()
 		[
 			SNew(STextBlock)
 			.Text(FText::FromString(TEXT("No pinned variables yet. Use “Add Variable” to stage entries.")))
@@ -301,12 +400,21 @@ void SPinVarPanel::Rebuild()
 		TSharedRef<SExpandableArea> Area =
 			SNew(SExpandableArea)
 			.InitiallyCollapsed(true)
-			.HeaderContent()[ SNew(STextBlock).Text(FText::FromName(Group)) ]
+			.HeaderContent()
+			[
+				SNew(STextBlock).Text(FText::FromName(Group))
+			]
 			.BodyContent()
 			[
 				SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight()[ SNew(SSeparator) ]
-				+ SVerticalBox::Slot().AutoHeight()[ ListVB ]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					SNew(SSeparator)
+				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					ListVB
+				]
 			];
 
 		// Restore expansion if we remembered it
@@ -320,8 +428,8 @@ void SPinVarPanel::Rebuild()
 		GroupAreaWidgets.Add(Group, Area);
 
 		RootBox->AddSlot()
-		.AutoHeight()
-		.Padding(0.f, 4.f)
+		       .AutoHeight()
+		       .Padding(0.f, 4.f)
 		[
 			Area
 		];
@@ -330,8 +438,8 @@ void SPinVarPanel::Rebuild()
 		for (const FEntry& E : Entries)
 		{
 			ListVB->AddSlot()
-			.AutoHeight()
-			.Padding(6.f, 6.f)
+			      .AutoHeight()
+			      .Padding(6.f, 6.f)
 			[
 				E.Widget
 			];
@@ -352,13 +460,13 @@ bool SPinVarPanel::IsEditableProperty(const FProperty* P)
 	if (!P) return false;
 
 	const bool bHasEdit = P->HasAnyPropertyFlags(CPF_Edit);
-	const bool bReadOnlyInEditor  = P->HasAnyPropertyFlags(CPF_EditConst);
+	const bool bReadOnlyInEditor = P->HasAnyPropertyFlags(CPF_EditConst);
 	const bool bHiddenOnTemplates = P->HasAnyPropertyFlags(CPF_DisableEditOnTemplate);
 	const bool bTransient = P->HasAnyPropertyFlags(CPF_Transient);
 	const bool bIsDelegate =
 		P->IsA(FMulticastDelegateProperty::StaticClass()) ||
 		P->IsA(FDelegateProperty::StaticClass());
-	
+
 	const bool bIsStructWrapper = P->IsA(FStructProperty::StaticClass());
 
 	// Allow struct wrappers even if DisableEditOnTemplate, but still block read‑only/transient/delegates.
@@ -379,7 +487,7 @@ void SPinVarPanel::GetAllGroups(TSharedRef<FState> S)
 		if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
 		{
 			// Pull from pinned mirror
-			for (const auto& Pair : Subsystem->PinnedGroups)                          // Map<FName ClassName, TArray<FPinnedVariable>>
+			for (const auto& Pair : Subsystem->PinnedGroups) // Map<FName ClassName, TArray<FPinnedVariable>>
 			{
 				for (const FPinnedVariable& E : Pair.Value)
 				{
@@ -433,316 +541,519 @@ void SPinVarPanel::GatherPinnedProperties()
 
 	FPropertyEditorModule& PropEd = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
+	// ---------- buckets per class ----------
 	struct FClassBuckets
 	{
-		FName   ClassName;
-		FText   ClassLabel;
+		FName ClassName;
+		FText ClassLabel;
 
 		TArray<FName> BPVars;
 		TArray<FName> NativeVars;
 
-		TMap<FName, TArray<FName>> ComponentVarsByName;          // CompLabel -> Var list
-		TMap<FName, TWeakObjectPtr<UObject>> ComponentTemplates; // CompLabel -> template obj
+		TMap<FName, TArray<FName>> ComponentVarsByName; // PrettyLabel -> [Var]
+		TMap<FName, TWeakObjectPtr<UObject>> ComponentTemplates; // PrettyLabel -> Template
+
+		TMap<FName, TArray<FName>> AssetVarsByName; // AssetName -> [Var]
+		TMap<FName, TWeakObjectPtr<UObject>> AssetsByName; // AssetName -> UObject
 	};
 
-	TMap<FName, TMap<FName, FClassBuckets>> Build; // Group -> (ClassName -> Buckets)
+	// ---------- tree for subcategories ----------
+	struct FGroupNode
+	{
+		FName Segment; // e.g. "Combat"
+		TMap<FName, TSharedPtr<FGroupNode>> Children;
+	};
 
-	// -------- Collect --------
+	// leaf full path -> (class -> buckets)
+	TMap<FString, TMap<FName, FClassBuckets>> BuildByPath;
+	// top-level segment -> node
+	TMap<FName, TSharedPtr<FGroupNode>> Roots;
+
+	// ---------- collect ----------
 	for (const TPair<FName, TArray<FPinnedVariable>>& Pair : Subsystem->PinnedGroups)
 	{
-		const FName ClassName = Pair.Key;
+		ClassName = Pair.Key;
 		UClass* Cls = FindFirstObjectSafe<UClass>(*ClassName.ToString());
+		if (!Cls) Cls = ResolveGeneratedClassByShortName();
 		if (!Cls || IsSkelOrReinst(Cls)) continue;
 
 		UObject* CDO = Cls->GetDefaultObject(true);
 		if (!CDO) continue;
 
 		const FName ClassFName = Cls->GetFName();
-		const FText ClassLabel = FText::FromString(PrettyBlueprintDisplayName(Cls)); // prettified for display
+		const FText ClassLabel = FText::FromString(PrettyBlueprintDisplayName(Cls));
 
 		for (const FPinnedVariable& Pinned : Pair.Value)
 		{
-			// Resolve target object (class defaults or component template)
-			UObject* TargetObj = CDO;
-			const bool bIsComponent = !Pinned.ComponentTemplateName.IsNone();
-			if (bIsComponent)
-			{
-				TargetObj = Pinned.ResolvedTemplate.IsValid()
-					? Pinned.ResolvedTemplate.Get()
-					: FindComponentTemplate(Cls, Pinned.ComponentTemplateName);
+			UObject* Target = CDO;
 
-				if (!TargetObj)
-				{
-					UE_LOG(LogTemp, Warning, TEXT("PinVar.Panel: component template '%s' not resolved on %s"),
-						*Pinned.ComponentTemplateName.ToString(), *CDO->GetName());
-					continue;
-				}
+			// asset target
+			if (!Pinned.AssetPath.IsNull())
+			{
+				Target = Pinned.AssetPath.ResolveObject();
+				if (!Target) Target = Pinned.AssetPath.TryLoad();
+				if (!Target) continue;
 			}
 
-			// Check property exists and is editable
-			FProperty* Found = FindFProperty<FProperty>(TargetObj->GetClass(), Pinned.VariableName);
+			// component target
+			if (!Pinned.ComponentTemplateName.IsNone())
+			{
+				Target = Pinned.ResolvedTemplate.IsValid()
+					         ? Pinned.ResolvedTemplate.Get()
+					         : FindComponentTemplate(Cls, Pinned.ComponentTemplateName);
+				if (!Target) continue;
+			}
+
+			FProperty* Found = FindFProperty<FProperty>(Target->GetClass(), Pinned.VariableName);
 			if (!Found || !IsEditableProperty(Found)) continue;
 
-			// Groups can be split by ','
 			TArray<FString> Tokens;
-			const FString Group = Pinned.GroupName.ToString();
-			Group.ParseIntoArray(Tokens, TEXT(","), /*CullEmpty*/ true);
-			if (Tokens.Num() == 0) Tokens.Add(GroupStr);
+			const FString GroupCsv = Pinned.GroupName.ToString();
+			GroupCsv.ParseIntoArray(Tokens, TEXT(","), /*CullEmpty*/ true);
+			if (Tokens.Num() == 0) Tokens.Add(GroupCsv);
 
-			for (const FString& Tok : Tokens)
+			for (FString Tok : Tokens)
 			{
-				const FName GroupName(*Tok.TrimStartAndEnd());
-				if (GroupName.IsNone()) continue;
+				Tok = Tok.TrimStartAndEnd();
+				if (Tok.IsEmpty()) continue;
 
-				FClassBuckets& B = Build.FindOrAdd(GroupName).FindOrAdd(ClassFName);
-				B.ClassName  = ClassFName;
+				// split by '|' for subcategories
+				TArray<FString> Segs;
+				Tok.ParseIntoArray(Segs, TEXT("|"), true);
+				for (FString& S : Segs) S = S.TrimStartAndEnd();
+				if (Segs.Num() == 0) continue;
+
+				const FString FullPath = FString::Join(Segs, TEXT("|"));
+				TMap<FName, FClassBuckets>& ClassMap = BuildByPath.FindOrAdd(FullPath);
+				FClassBuckets& B = ClassMap.FindOrAdd(ClassFName);
+				B.ClassName = ClassFName;
 				B.ClassLabel = ClassLabel;
 
-				if (!bIsComponent)
+				if (!Pinned.AssetPath.IsNull())
 				{
-					if (IsBPDeclared(Found))          { B.BPVars.Add(Pinned.VariableName); }
-					else if (IsNativeDeclared(Found)) { B.NativeVars.Add(Pinned.VariableName); }
-					else                               { B.BPVars.Add(Pinned.VariableName); }
+					const FName AssetLabel(*Target->GetName());
+					B.AssetVarsByName.FindOrAdd(AssetLabel).Add(Pinned.VariableName);
+					B.AssetsByName.FindOrAdd(AssetLabel) = Target;
+				}
+				else if (Pinned.ComponentTemplateName.IsNone())
+				{
+					if (IsBPDeclared(Found)) B.BPVars.Add(Pinned.VariableName);
+					else if (IsNativeDeclared(Found)) B.NativeVars.Add(Pinned.VariableName);
+					else B.BPVars.Add(Pinned.VariableName);
 				}
 				else
 				{
 					const FName CompLabel = !Pinned.ComponentVariablePrettyName.IsNone()
-						? Pinned.ComponentVariablePrettyName
-						: Pinned.ComponentTemplateName;
+						                        ? Pinned.ComponentVariablePrettyName
+						                        : Pinned.ComponentTemplateName;
 
 					B.ComponentVarsByName.FindOrAdd(CompLabel).Add(Pinned.VariableName);
-					if (!B.ComponentTemplates.Contains(CompLabel))
+					B.ComponentTemplates.FindOrAdd(CompLabel) = Target;
+				}
+
+				// build tree path
+				const FName RootSeg(*Segs[0]);
+				TSharedPtr<FGroupNode>& Root = Roots.FindOrAdd(RootSeg);
+				if (!Root)
+				{
+					Root = MakeShared<FGroupNode>();
+					Root->Segment = RootSeg;
+				}
+
+				TSharedPtr<FGroupNode> Cursor = Root;
+				for (int32 i = 1; i < Segs.Num(); ++i)
+				{
+					const FName Seg(*Segs[i]);
+					TSharedPtr<FGroupNode>& Child = Cursor->Children.FindOrAdd(Seg);
+					if (!Child)
 					{
-						B.ComponentTemplates.Add(CompLabel, TargetObj);
+						Child = MakeShared<FGroupNode>();
+						Child->Segment = Seg;
 					}
+					Cursor = Child;
 				}
 			}
 		}
 	}
 
-	// -------- Emit UI into Grouped --------
-	for (auto& GroupKV : Build)
+	// helper: make class sections for a leaf path
+	auto MakeClassSectionsForPath = [&](const FString& FullPath) -> TSharedRef<SVerticalBox>
 	{
-		const FName Group = GroupKV.Key;
-		TMap<FName, FClassBuckets>& Classes = GroupKV.Value;
+		TSharedRef<SVerticalBox> VB = SNew(SVerticalBox);
+		TMap<FName, FClassBuckets>* ClassesPtr = BuildByPath.Find(FullPath);
+		if (!ClassesPtr) return VB;
 
-		// Sort classes by label (case-insensitive)
 		TArray<FName> ClassOrder;
-		Classes.GenerateKeyArray(ClassOrder);
-		ClassOrder.Sort([&Classes](const FName& A, const FName& B)
+		ClassesPtr->GenerateKeyArray(ClassOrder);
+		ClassOrder.Sort([&](const FName& A, const FName& B)
 		{
-			return Classes[A].ClassLabel.ToString().Compare(
-				Classes[B].ClassLabel.ToString(), ESearchCase::IgnoreCase) < 0;
+			return (*ClassesPtr)[A].ClassLabel.ToString().Compare((*ClassesPtr)[B].ClassLabel.ToString(),
+			                                                      ESearchCase::IgnoreCase) < 0;
 		});
 
 		for (const FName& CN : ClassOrder)
 		{
-			FClassBuckets& B = Classes[CN];
-
-			// Sort buckets
+			FClassBuckets& B = (*ClassesPtr)[CN];
 			B.BPVars.Sort(FNameLexicalLess());
 			B.NativeVars.Sort(FNameLexicalLess());
+			for (auto& It : B.ComponentVarsByName) { It.Value.Sort(FNameLexicalLess()); }
+
 			TArray<FName> CompNames;
 			B.ComponentVarsByName.GenerateKeyArray(CompNames);
 			CompNames.Sort(FNameLexicalLess());
-			for (auto& CKV : B.ComponentVarsByName) { CKV.Value.Sort(FNameLexicalLess()); }
+			TArray<FName> AssetNames;
+			B.AssetVarsByName.GenerateKeyArray(AssetNames);
+			AssetNames.Sort(FNameLexicalLess());
 
-			TSharedRef<SVerticalBox> ClassVB = SNew(SVerticalBox);
-
-			ClassVB->AddSlot().AutoHeight().Padding(6.f, 8.f, 6.f, 4.f)
+			VB->AddSlot().AutoHeight().Padding(6, 8, 6, 4)
 			[
-				SNew(STextBlock)
-				.Text(B.ClassLabel)
-				.Font(FCoreStyle::GetDefaultFontStyle("Bold", 14))
+				SNew(STextBlock).Text(B.ClassLabel).Font(FCoreStyle::GetDefaultFontStyle("Bold", 14))
 			];
 
-			// --- Helpers ---
-
-			// Single property OR struct-only details (only shows the struct's members)
-			auto EmitPropOnly = [&](UObject* Target, const FName Var) -> TSharedRef<SWidget>
+			// emitters
+			auto EmitPropOnly = [&](UObject* Target, const FName Var)-> TSharedRef<SWidget>
 			{
 				FProperty* P = FindFProperty<FProperty>(Target->GetClass(), Var);
 
-				// ---- Structs ----
-				if (FStructProperty* StructProp = CastField<FStructProperty>(P))
+				// struct handling
+				if (FStructProperty* SP = CastField<FStructProperty>(P))
 				{
-					UScriptStruct* SS = StructProp->Struct;
-
+					UScriptStruct* SS = SP->Struct;
 					if (SS && IsSimpleStruct(SS))
 					{
-						// Simple struct: single property view
-						FPropertyEditorModule& PropEd =
-							FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-
 						FSinglePropertyParams Params;
-						FText TypeTooltip = FText::FromString(P ? P->GetCPPType(nullptr) : TEXT("Unknown Type"));
 						TSharedPtr<ISinglePropertyView> View = PropEd.CreateSingleProperty(Target, Var, Params);
-						TSharedRef<SWidget> Inner =	View.IsValid()
-									? StaticCastSharedRef<SWidget>(View.ToSharedRef())
-									: StaticCastSharedRef<SWidget>(
-										  SNew(STextBlock).Text(FText::FromName(Var)) );
-
-						// Always wrap so we can attach the tooltip cleanly
-						return SNew(SBox)
-							.ToolTipText(TypeTooltip)
+						TSharedRef<SWidget> Inner = View.IsValid()
+							                            ? StaticCastSharedRef<SWidget>(View.ToSharedRef())
+							                            : StaticCastSharedRef<SWidget>(
+								                            SNew(STextBlock).Text(FText::FromName(Var)));
+						return SNew(SBox).ToolTipText(
+								FText::FromString(P ? P->GetCPPType(nullptr) : TEXT("Unknown Type")))
 							[
 								Inner
 							];
 					}
-
-					// Everything else: struct details view (even if IsSimpleStruct() returns false)
 					if (SS)
 					{
-						void* ValuePtr = StructProp->ContainerPtrToValuePtr<void>(Target);
+						void* ValuePtr = SP->ContainerPtrToValuePtr<void>(Target);
 						if (ValuePtr)
 						{
-							TSharedRef<FStructOnScope> Scope =
-								MakeShared<FStructOnScope>(SS, reinterpret_cast<uint8*>(ValuePtr));
-
+							TSharedRef<FStructOnScope> Scope = MakeShared<FStructOnScope>(
+								SS, reinterpret_cast<uint8*>(ValuePtr));
 							FDetailsViewArgs DArgs;
-							DArgs.bAllowSearch      = false;
-							DArgs.bShowOptions      = false;
-							DArgs.bShowScrollBar    = false;
+							DArgs.bAllowSearch = false;
+							DArgs.bShowOptions = false;
+							DArgs.bShowScrollBar = false;
 							DArgs.bHideSelectionTip = true;
-							DArgs.ViewIdentifier    = TEXT("PinVarStructOnly");
 							DArgs.bShowObjectLabel = false;
-
 							FStructureDetailsViewArgs SArgs;
 							SArgs.bShowObjects = false;
-							SArgs.bShowAssets  = false;
-
-							FPropertyEditorModule& PropEd =
-								FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-
-							TSharedRef<IStructureDetailsView> SDV =
-								PropEd.CreateStructureDetailView(DArgs, SArgs, nullptr);
+							SArgs.bShowAssets = false;
+							TSharedRef<IStructureDetailsView> SDV = PropEd.CreateStructureDetailView(
+								DArgs, SArgs, nullptr);
 							SDV->SetStructureData(Scope);
-
 							return SNew(SVerticalBox)
-							+ SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 2)
-							[
-								SNew(STextBlock)
-								.Text(FText::FromName(Var))
-							]
-							+ SVerticalBox::Slot().AutoHeight()
-							[
-								SDV->GetWidget().ToSharedRef()
-							];
+								+ SVerticalBox::Slot().AutoHeight()
+								[
+									SNew(STextBlock).Text(FText::FromName(Var))
+								]
+								+ SVerticalBox::Slot().AutoHeight()
+								[
+									SDV->GetWidget().ToSharedRef()
+								];
 						}
 					}
 				}
-				// ---- Non-structs ----
-				FPropertyEditorModule& PropEd =
-					FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
+				// containers
+				if (IsContainerProperty(P))
+				{
+					FDetailsViewArgs DArgs;
+					DArgs.bAllowSearch = false;
+					DArgs.bShowOptions = false;
+					DArgs.bShowScrollBar = false;
+					DArgs.bHideSelectionTip = true;
+					DArgs.bShowObjectLabel = false;
+					DArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+					TSharedRef<IDetailsView> DV = PropEd.CreateDetailView(DArgs);
+					DV->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateLambda(
+						[Var](const FPropertyAndParent& In)
+						{
+							if (In.Property.GetFName() == Var) return true;
+							for (const FProperty* Parent : In.ParentProperties)
+							{
+								if (Parent && Parent->GetFName() == Var) return true;
+							}
+							return false;
+						}));
+					if (!IsComplexStructContainer(P))
+					{
+						const FString VarStr = Var.ToString();
+						DV->SetIsCustomRowVisibleDelegate(FIsCustomRowVisible::CreateLambda(
+							[VarStr](FName, FName PropName)
+							{
+								if (PropName.IsNone()) return true;
+								const FString N = PropName.ToString();
+								return N == VarStr || N.StartsWith(VarStr + TEXT(".")) || N.StartsWith(
+									VarStr + TEXT("_"));
+							}));
+					}
+					DV->SetObject(Target);
+					return SNew(SVerticalBox)
+						+ SVerticalBox::Slot().AutoHeight()
+						[
+							SNew(STextBlock).Text(FText::FromName(Var))
+						]
+						+ SVerticalBox::Slot().AutoHeight()
+						[
+							DV
+						];
+				}
+
+				// simple single row
 				FSinglePropertyParams Params;
 				TSharedPtr<ISinglePropertyView> View = PropEd.CreateSingleProperty(Target, Var, Params);
-
-				const FText TypeTooltip = FText::FromString(P ? P->GetCPPType(nullptr) : TEXT("Unknown Type"));
-
-				// Build inner widget (SinglePropertyView or fallback text)
-				TSharedRef<SWidget> Inner =
-					View.IsValid()
-						? StaticCastSharedRef<SWidget>(View.ToSharedRef())
-						: StaticCastSharedRef<SWidget>(SNew(STextBlock).Text(FText::FromName(Var)));
-
-				// Always wrap so we can attach the tooltip
-				return SNew(SBox)
-					.ToolTipText(TypeTooltip)
+				TSharedRef<SWidget> Inner = View.IsValid()
+					                            ? StaticCastSharedRef<SWidget>(View.ToSharedRef())
+					                            : StaticCastSharedRef<SWidget>(
+						                            SNew(STextBlock).Text(FText::FromName(Var)));
+				return SNew(SBox).ToolTipText(FText::FromString(P ? P->GetCPPType(nullptr) : TEXT("Unknown Type")))
 					[
 						Inner
 					];
 			};
-			auto EmitPropWithDelete = [&](UObject* Target,
-			                              const FName Var,
-			                              const FName GroupName,
-			                              const FName ClassName,
-			                              const FName CompNameForRemoval) -> TSharedRef<SWidget>
+
+			auto EmitPropWithDelete = [&](UObject* Target, const FName Var, const FName ClassName,
+			                              const FName CompNameForRemoval)-> TSharedRef<SWidget>
 			{
 				return SNew(SHorizontalBox)
-
-				+ SHorizontalBox::Slot()
-				.FillWidth(1.f)
-				[
-					EmitPropOnly(Target, Var) // struct -> struct-only panel, else single row
-				]
-
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Top)
-				.Padding(6.f, 2.f, 0.f, 0.f)
-				[
-					SNew(SButton)
-					.ButtonStyle(FAppStyle::Get(), "FlatButton")
-					.ContentPadding(FMargin(4.f, 2.f))
-					.ToolTipText(FText::FromString(TEXT("Remove this variable from the list")))
-					.OnClicked(this, &SPinVarPanel::OnRemovePinned, ClassName, Var, GroupName, CompNameForRemoval)
+					+ SHorizontalBox::Slot().FillWidth(1.f)
 					[
-						SNew(STextBlock)
-						.Text(FText::FromString(TEXT("X")))
-						.ColorAndOpacity(FLinearColor::Red)
+						EmitPropOnly(Target, Var)
 					]
-				];
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Top).Padding(6, 2, 0, 0)
+					[
+						SNew(SButton)
+						.ButtonStyle(FAppStyle::Get(), "FlatButton")
+						.ContentPadding(FMargin(4, 2))
+						.ToolTipText(FText::FromString(TEXT("Remove this variable from the list")))
+						.OnClicked(this, &SPinVarPanel::OnRemovePinned, ClassName, Var, FName(*FullPath),
+						           CompNameForRemoval)
+						[
+							SNew(STextBlock).Text(FText::FromString(TEXT("X"))).ColorAndOpacity(FLinearColor::Red)
+						]
+					];
 			};
 
-			// Class defaults (BP then Native)
-			if (B.BPVars.Num() || B.NativeVars.Num())
+			// class defaults
+			if (UClass* C = FindFirstObjectSafe<UClass>(*B.ClassName.ToString()))
 			{
-				if (UClass* ClsForCDO = FindFirstObjectSafe<UClass>(*B.ClassName.ToString()))
+				if (UObject* CDO = C->GetDefaultObject(true))
 				{
-					if (UObject* CDO = ClsForCDO->GetDefaultObject(true))
+					for (const FName& V : B.BPVars)
+						VB->AddSlot().AutoHeight().Padding(16, 2)[EmitPropWithDelete(
+							CDO, V, B.ClassName, NAME_None)];
+					for (const FName& V : B.NativeVars)
+						VB->AddSlot().AutoHeight().Padding(16, 2)[EmitPropWithDelete(
+							CDO, V, B.ClassName, NAME_None)];
+				}
+			}
+
+			// components
+			{
+				TArray<FName> CompLabels;
+				B.ComponentVarsByName.GenerateKeyArray(CompLabels);
+				CompLabels.Sort(FNameLexicalLess());
+				for (const FName& CompLabel : CompLabels)
+				{
+					VB->AddSlot().AutoHeight().Padding(10, 8, 6, 2)
+					[
+						SNew(STextBlock)
+						.Text(FText::FromString(FString::Printf(TEXT("Component: %s"), *CompLabel.ToString())))
+						.ColorAndOpacity(FLinearColor(0.8f, 0.8f, 0.8f, 1))
+					];
+					UObject* Tmpl = B.ComponentTemplates.FindRef(CompLabel).Get();
+					if (!Tmpl) continue;
+					const FName CompNameForRemoval = Tmpl->GetFName();
+					for (const FName& V : B.ComponentVarsByName[CompLabel])
 					{
-						for (const FName& Var : B.BPVars)
-						{
-							ClassVB->AddSlot().AutoHeight().Padding(16.f, 2.f)
-							[ EmitPropWithDelete(CDO, Var, Group, B.ClassName, NAME_None) ];
-						}
-						for (const FName& Var : B.NativeVars)
-						{
-							ClassVB->AddSlot().AutoHeight().Padding(16.f, 2.f)
-							[ EmitPropWithDelete(CDO, Var, Group, B.ClassName, NAME_None) ];
-						}
+						VB->AddSlot().AutoHeight().Padding(16, 2)[EmitPropWithDelete(
+							Tmpl, V, B.ClassName, CompNameForRemoval)];
 					}
 				}
 			}
 
-			// Components
-			for (const FName& CompLabel : CompNames)
+			// assets
 			{
-				ClassVB->AddSlot().AutoHeight().Padding(10.f, 8.f, 6.f, 2.f)
-				[
-					SNew(STextBlock)
-					.Text(FText::FromString(FString::Printf(TEXT("Component: %s"), *CompLabel.ToString())))
-					.ColorAndOpacity(FLinearColor(0.8f,0.8f,0.8f,1))
-				];
+				TArray<FName> AssetLabels;
+				B.AssetVarsByName.GenerateKeyArray(AssetLabels);
+				AssetLabels.Sort(FNameLexicalLess());
 
-				UObject* Tmpl = B.ComponentTemplates.FindRef(CompLabel).Get();
-				if (!Tmpl) continue;
-
-				const FName CompNameForRemoval = Tmpl->GetFName();
-
-				for (const FName& Var : B.ComponentVarsByName[CompLabel])
+				for (const FName& AName : AssetLabels)
 				{
-					ClassVB->AddSlot().AutoHeight().Padding(16.f, 2.f)
+					UObject* Obj = B.AssetsByName.FindRef(AName).Get();
+					const FString ParentClass = Obj ? Obj->GetClass()->GetName() : FString();
+
+					// Two-line header: AssetName (big) + ParentClass (small, grey)
+					VB->AddSlot().AutoHeight().Padding(10, 8, 6, 2)
 					[
-						EmitPropWithDelete(Tmpl, Var, Group, B.ClassName, CompNameForRemoval)
+						SNew(SVerticalBox)
+						+ SVerticalBox::Slot().AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(FText::FromName(AName))
+							.Font(FCoreStyle::GetDefaultFontStyle("Bold", 12))
+						]
+						+ SVerticalBox::Slot().AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(FText::FromString(ParentClass))
+							.Font(FCoreStyle::GetDefaultFontStyle("Regular", 8))
+							.ColorAndOpacity(FLinearColor(0.7f, 0.7f, 0.7f))
+						]
 					];
+
+					if (Obj)
+					{
+						for (const FName& V : B.AssetVarsByName[AName])
+						{
+							VB->AddSlot().AutoHeight().Padding(16, 2)
+							[
+								EmitPropWithDelete(Obj, V, B.ClassName, NAME_None)
+							];
+						}
+					}
 				}
 			}
-
-			// One entry per class for this group
-			Grouped.FindOrAdd(Group).Add({ Group, ClassVB });
 		}
+
+		return VB;
+	};
+
+	// small helper to register expand state per path
+	auto RegisterArea = [&](const FString& FullPath, const TSharedRef<SExpandableArea>& Area)
+	{
+		const FName Key(*FullPath);
+		if (const bool* Remembered = GroupExpandedState.Find(Key)) { Area->SetExpanded(*Remembered); }
+		GroupAreaWidgets.Add(Key, Area);
+	};
+
+	// recursive builder
+	TFunction<TSharedRef<SWidget>(const FString&, const TSharedPtr<FGroupNode>&)> BuildNode =
+		[&](const FString& ParentPath, const TSharedPtr<FGroupNode>& Node)-> TSharedRef<SWidget>
+	{
+		const FString FullPath = ParentPath.IsEmpty()
+			                         ? Node->Segment.ToString()
+			                         : ParentPath + TEXT("|") + Node->Segment.ToString();
+
+		TSharedRef<SVerticalBox> Body = SNew(SVerticalBox);
+
+		// sections at this exact path
+		Body->AddSlot().AutoHeight().Padding(6, 6)[MakeClassSectionsForPath(FullPath)];
+
+		// children
+		TArray<FName> ChildKeys;
+		Node->Children.GenerateKeyArray(ChildKeys);
+		ChildKeys.Sort(FNameLexicalLess());
+		for (const FName& ChildSeg : ChildKeys)
+		{
+			const TSharedPtr<FGroupNode>& Child = Node->Children[ChildSeg];
+			TSharedRef<SExpandableArea> ChildArea =
+				SNew(SExpandableArea)
+				.InitiallyCollapsed(true)
+				.HeaderContent()
+				[
+					SNew(STextBlock).Text(FText::FromName(ChildSeg))
+				]
+				.BodyContent()
+				[
+					BuildNode(FullPath, Child)
+				];
+
+			RegisterArea(FullPath + TEXT("|") + ChildSeg.ToString(), ChildArea);
+			Body->AddSlot().AutoHeight().Padding(12, 4, 0, 0)[ChildArea];
+		}
+		return Body;
+	};
+
+	// ---------- emit to Grouped (top-level only) ----------
+	Grouped.Reset();
+
+	TArray<FName> RootNames;
+	Roots.GenerateKeyArray(RootNames);
+	RootNames.Sort(FNameLexicalLess());
+	for (const FName& RootSeg : RootNames)
+	{
+		const TSharedPtr<FGroupNode>& Root = Roots[RootSeg];
+		if (!Root) continue;
+
+		// composite body that Rebuild() will put inside the top-level area
+		TSharedRef<SVerticalBox> RootBody = SNew(SVerticalBox);
+
+		// sections pinned directly to the root
+		RootBody->AddSlot().AutoHeight().Padding(6, 6)[MakeClassSectionsForPath(RootSeg.ToString())];
+
+		// children areas
+		TArray<FName> ChildKeys;
+		Root->Children.GenerateKeyArray(ChildKeys);
+		ChildKeys.Sort(FNameLexicalLess());
+		for (const FName& ChildSeg : ChildKeys)
+		{
+			const TSharedPtr<FGroupNode>& Child = Root->Children[ChildSeg];
+			TSharedRef<SExpandableArea> Area =
+				SNew(SExpandableArea)
+				.InitiallyCollapsed(true)
+				.HeaderContent()
+				[
+					SNew(STextBlock).Text(FText::FromName(ChildSeg))
+				]
+				.BodyContent()
+				[
+					BuildNode(RootSeg.ToString(), Child)
+				];
+
+			RegisterArea(RootSeg.ToString() + TEXT("|") + ChildSeg.ToString(), Area);
+			RootBody->AddSlot().AutoHeight().Padding(12, 4, 0, 0)[Area];
+		}
+
+		Grouped.FindOrAdd(RootSeg).Add({RootSeg, RootBody});
 	}
 }
 
-FReply SPinVarPanel::OnRemovePinned(FName ClassName, FName VarName, FName GroupName, FName CompName)
+
+void SPinVarPanel::OnAnyAssetPicked(const FAssetData& AssetData)
+{
+	if (TSharedPtr<SWindow> W = SelectBlueprintWindow.Pin())
+	{
+		W->RequestDestroyWindow();
+	}
+
+	if (!AssetData.IsValid()) return;
+
+	UObject* Asset = AssetData.GetAsset();
+	if (!Asset) return;
+
+	// If it's a Blueprint, reuse your existing path.
+	if (UBlueprint* BP = Cast<UBlueprint>(Asset))
+	{
+		OnBlueprintPicked(AssetData);
+		return;
+	}
+
+	// Data Asset instance picked (Primary or plain)
+	if (Asset->IsA(UPrimaryDataAsset::StaticClass()) || Asset->IsA(UDataAsset::StaticClass()))
+	{
+		ShowAddDialogForDataAsset(Asset); // <-- use the instance dialog
+	}
+}
+
+FReply SPinVarPanel::OnRemovePinned(FName Class, FName VarName, FName GroupName, FName CompName)
 {
 	if (GEditor)
 	{
 		if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
 		{
-			Subsystem->UnstagePinVariable(ClassName, VarName, GroupName, CompName);
+			Subsystem->UnstagePinVariable(Class, VarName, GroupName, CompName);
 			Refresh(); // rebuild UI
 		}
 	}
@@ -752,14 +1063,17 @@ FReply SPinVarPanel::OnRemovePinned(FName ClassName, FName VarName, FName GroupN
 FReply SPinVarPanel::OnAddBlueprintVariableClicked()
 {
 	if (TSharedPtr<SWindow> W = SelectBlueprintWindow.Pin()) { W->RequestDestroyWindow(); }
-	if (TSharedPtr<SWindow> W = AddVariableWindow.Pin())     { W->RequestDestroyWindow(); }
+	if (TSharedPtr<SWindow> W = AddVariableWindow.Pin()) { W->RequestDestroyWindow(); }
 	FAssetPickerConfig PickerConfig;
+	PickerConfig.Filter.bRecursiveClasses = true;
 	PickerConfig.Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+	PickerConfig.Filter.ClassPaths.Add(UPrimaryDataAsset::StaticClass()->GetClassPathName());
+	PickerConfig.Filter.ClassPaths.Add(UDataAsset::StaticClass()->GetClassPathName());
 	PickerConfig.SelectionMode = ESelectionMode::Single;
-	PickerConfig.OnAssetSelected = FOnAssetSelected::CreateSP(this, &SPinVarPanel::OnBlueprintPicked);
+	PickerConfig.OnAssetSelected = FOnAssetSelected::CreateSP(this, &SPinVarPanel::OnAnyAssetPicked);
 
 	TSharedRef<SWindow> PickerWindow = SNew(SWindow)
-		.Title(FText::FromString("Select Blueprint"))
+		.Title(FText::FromString("Select Asset"))
 		.ClientSize(FVector2D(600, 400))
 		[
 			FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser")
@@ -774,15 +1088,320 @@ FReply SPinVarPanel::OnAddBlueprintVariableClicked()
 
 void SPinVarPanel::OnBlueprintPicked(const FAssetData& AssetData)
 {
-	if (TSharedPtr<SWindow> W = AddVariableWindow.Pin())     { W->RequestDestroyWindow(); }
-	if (!AssetData.IsValid())
-		return;
+	if (TSharedPtr<SWindow> W = SelectBlueprintWindow.Pin()) { W->RequestDestroyWindow(); }
+	if (TSharedPtr<SWindow> W2 = AddVariableWindow.Pin()) { W2->RequestDestroyWindow(); }
 
-	UBlueprint* BP = Cast<UBlueprint>(AssetData.GetAsset());
-	if (!BP)
-		return;
+	if (!AssetData.IsValid()) return;
+	if (UBlueprint* BP = Cast<UBlueprint>(AssetData.GetAsset()))
+	{
+		ShowAddDialog(BP);
+	}
+}
 
-	ShowAddDialog(BP);
+void SPinVarPanel::ShowAddDialogForDataAsset(UObject* DataAssetInstance)
+{
+	if (!DataAssetInstance) return;
+
+	UClass* TargetClass = DataAssetInstance->GetClass();
+
+	TSharedRef<FState> S = MakeShared<FState>();
+	S->BP = nullptr;
+	S->Class = TargetClass;
+	S->bIsDataAssetClass = true;
+	S->DataAssetInstance = DataAssetInstance; // remember the instance we picked
+	if (!GroupStr.IsEmpty()) { S->GroupStr = GroupStr; }
+
+	// --- Gather Parent C++ props ---
+	{
+		TArray<FName> TmpProp;
+		GatherNativeProps(TargetClass, TmpProp);
+		for (const FName& N : TmpProp)
+			S->NativePropOpts.Add(MakeShared<FString>(N.ToString()));
+		if (S->NativePropOpts.Num())
+			S->NativePropSel = S->NativePropOpts[0];
+	}
+
+	// --- If Blueprint DataAsset, gather its local BP variables ---
+	if (UBlueprintGeneratedClass* BPGC = Cast<UBlueprintGeneratedClass>(TargetClass))
+	{
+		if (UBlueprint* OwnerBP = Cast<UBlueprint>(BPGC->ClassGeneratedBy))
+		{
+			S->BP = OwnerBP;
+			TArray<FName> TmpVar;
+			GatherLocalVars(OwnerBP, TmpVar);
+			for (const FName& N : TmpVar)
+				S->LocalVarOpts.Add(MakeShared<FString>(N.ToString()));
+			if (S->LocalVarOpts.Num())
+				S->LocalVarSel = S->LocalVarOpts[0];
+		}
+	}
+
+	// Prefer BP locals if present, otherwise parent C++
+	S->SourceType = (S->BP && S->LocalVarOpts.Num() > 0)
+		                ? FState::ESourceType::LocalBPVar
+		                : FState::ESourceType::LocalCppVar;
+
+	// Groups
+	GetAllGroups(S);
+	if (S->ExistingGroupOpts.Num())
+		S->ExistingGroupSel = S->ExistingGroupOpts[0];
+
+	TSharedRef<SWindow> Dialog = SNew(SWindow)
+		.Title(FText::FromString(TEXT("Add Variable to Group")))
+		.SupportsMaximize(false)
+		.SupportsMinimize(false)
+		.ClientSize(FVector2D(520, 320));
+
+	AddVariableWindow = Dialog;
+
+	auto MakeStringCombo = [](TArray<TSharedPtr<FString>>& Source, TSharedPtr<FString>& Sel)
+	{
+		return SNew(SSearchableComboBox)
+			.OptionsSource(&Source)
+			.OnGenerateWidget_Lambda([](TSharedPtr<FString> It)
+			{
+				return SNew(STextBlock).Text(FText::FromString(It.IsValid() ? *It : TEXT("None")));
+			})
+			.OnSelectionChanged_Lambda([&Sel](TSharedPtr<FString> NewSel, ESelectInfo::Type)
+			{
+				Sel = NewSel;
+			})
+			.InitiallySelectedItem(Sel)
+			[
+				SNew(STextBlock)
+				.Text_Lambda([&Sel]()
+				{
+					return Sel.IsValid() ? FText::FromString(*Sel) : FText::FromString(TEXT("None"));
+				})
+			];
+	};
+
+	Dialog->SetContent(
+		SNew(SVerticalBox)
+
+		// Source segment (BP local / Parent C++)
+		+ SVerticalBox::Slot().AutoHeight().Padding(12, 12, 12, 6)
+		[
+			SNew(SSegmentedControl<int32>)
+			.Value_Lambda([S]()
+			{
+				return S->BP
+					       ? static_cast<int32>(S->SourceType)
+					       : static_cast<int32>(FState::ESourceType::LocalCppVar);
+			})
+			.OnValueChanged_Lambda([S](int32 NewIdx)
+			{
+				if (!S->BP && NewIdx == static_cast<int32>(FState::ESourceType::LocalBPVar))
+					NewIdx = static_cast<int32>(FState::ESourceType::LocalCppVar);
+				if (NewIdx > static_cast<int32>(FState::ESourceType::LocalCppVar))
+					NewIdx = static_cast<int32>(FState::ESourceType::LocalCppVar);
+				S->SourceType = static_cast<FState::ESourceType>(NewIdx);
+			})
+			+ SSegmentedControl<int32>::Slot(0).Text(FText::FromString("Blueprint local"))
+			+ SSegmentedControl<int32>::Slot(1).Text(FText::FromString("Parent C++"))
+		]
+
+		// Local BP
+		+ SVerticalBox::Slot().AutoHeight().Padding(12, 6, 12, 4)
+		[
+			SNew(SVerticalBox)
+			.Visibility_Lambda([S]()
+			{
+				const bool bShow = (S->SourceType == FState::ESourceType::LocalBPVar) && (S->BP != nullptr);
+				return bShow ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+			+ SVerticalBox::Slot().AutoHeight()
+			[
+				SNew(STextBlock).Text(FText::FromString("Variable:"))
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 2, 0, 0)
+			[
+				MakeStringCombo(S->LocalVarOpts, S->LocalVarSel)
+			]
+		]
+
+		// Parent C++
+		+ SVerticalBox::Slot().AutoHeight().Padding(12, 6, 12, 4)
+		[
+			SNew(SVerticalBox)
+			.Visibility_Lambda([S]()
+			{
+				return (S->SourceType == FState::ESourceType::LocalCppVar)
+					       ? EVisibility::Visible
+					       : EVisibility::Collapsed;
+			})
+			+ SVerticalBox::Slot().AutoHeight()
+			[
+				SNew(STextBlock).Text(FText::FromString("Property:"))
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 2, 0, 0)
+			[
+				MakeStringCombo(S->NativePropOpts, S->NativePropSel)
+			]
+		]
+
+		// Group name
+		+ SVerticalBox::Slot().AutoHeight().Padding(12, 10, 12, 8)
+		[
+			SNew(STextBlock).Text(FText::FromString("Group Name (`|` for subcategories):"))
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(12, 0, 12, 12)
+		[
+			SNew(SEditableTextBox)
+			.Text_Lambda([S]() { return FText::FromString(S->GroupStr); })
+			.OnTextChanged_Lambda([S](const FText& T) { S->GroupStr = T.ToString(); })
+		]
+
+		// Buttons row
+		+ SVerticalBox::Slot().AutoHeight().Padding(12, 0, 12, 12)
+		[
+			SNew(SHorizontalBox)
+
+			// Existing group dropdown
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+			[
+				SNew(SSearchableComboBox)
+				.OptionsSource(&S->ExistingGroupOpts)
+				.OnGenerateWidget_Lambda([](TSharedPtr<FString> It)
+				{
+					return SNew(STextBlock).Text(FText::FromString(It.IsValid() ? *It : TEXT("None")));
+				})
+				.OnSelectionChanged_Lambda([S](TSharedPtr<FString> NewSel, ESelectInfo::Type)
+				{
+					S->ExistingGroupSel = NewSel;
+				})
+				.InitiallySelectedItem(S->ExistingGroupSel)
+				[
+					SNew(STextBlock)
+					.Text_Lambda([S]()
+					{
+						return S->ExistingGroupSel.IsValid()
+							       ? FText::FromString(*S->ExistingGroupSel)
+							       : FText::FromString(TEXT("Select group…"));
+					})
+				]
+			]
+
+			// Add to existing group
+			+ SHorizontalBox::Slot().AutoWidth().Padding(8, 0, 0, 0).VAlign(VAlign_Center)
+			[
+				SNew(SButton)
+				.IsEnabled_Lambda([S]() { return S->ExistingGroupSel.IsValid() && !S->ExistingGroupSel->IsEmpty(); })
+				.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
+				.Text(FText::FromString("Add to existing group"))
+				.OnClicked_Lambda([this, S]()
+				{
+					if (!GEditor || !S->Class || !S->ExistingGroupSel.IsValid() || S->ExistingGroupSel->IsEmpty())
+						return FReply::Handled();
+
+					const FName GroupName = FName(**S->ExistingGroupSel);
+					FName VarName = NAME_None;
+
+					switch (S->SourceType)
+					{
+					case FState::ESourceType::LocalBPVar:
+						if (S->LocalVarSel.IsValid()) VarName = FName(**S->LocalVarSel);
+						break;
+					case FState::ESourceType::LocalCppVar:
+						if (S->NativePropSel.IsValid()) VarName = FName(**S->NativePropSel);
+						break;
+					default: break;
+					}
+
+					if (!VarName.IsNone() && S->DataAssetInstance.IsValid())
+					{
+						if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
+						{
+							Subsystem->StagePinVariableForDataAsset(
+								S->Class->GetFName(),
+								VarName,
+								GroupName,
+								S->DataAssetInstance.Get()
+							);
+							Subsystem->SaveToDisk();
+							Subsystem->MergeStagedIntoPinned();
+						}
+					}
+
+					Refresh();
+					return FReply::Handled();
+				})
+			]
+
+			+ SHorizontalBox::Slot().FillWidth(1.f)
+
+			// Add from text box
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
+			[
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
+				.Text(FText::FromString("Add"))
+				.OnClicked_Lambda([this, S]()
+				{
+					if (!GEditor || !S->Class) return FReply::Handled();
+
+					FString GroupCsv = S->GroupStr.TrimStartAndEnd();
+					if (GroupCsv.IsEmpty()) { GroupCsv = TEXT("Default"); }
+
+					FName VarName = NAME_None;
+					switch (S->SourceType)
+					{
+					case FState::ESourceType::LocalBPVar:
+						if (S->LocalVarSel.IsValid()) VarName = FName(**S->LocalVarSel);
+						break;
+					case FState::ESourceType::LocalCppVar:
+						if (S->NativePropSel.IsValid()) VarName = FName(**S->NativePropSel);
+						break;
+					default: break;
+					}
+
+					if (VarName.IsNone() || !S->DataAssetInstance.IsValid())
+					{
+						UE_LOG(LogTemp, Warning,
+						       TEXT("PinVar: Add aborted — no variable selected or instance invalid."));
+						return FReply::Handled();
+					}
+
+					if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
+					{
+						TArray<FString> Groups;
+						GroupCsv.ParseIntoArray(Groups, TEXT(","), true);
+						for (FString& G : Groups)
+						{
+							G = G.TrimStartAndEnd();
+							if (!G.IsEmpty())
+							{
+								Subsystem->StagePinVariableForDataAsset(
+									S->Class->GetFName(),
+									VarName,
+									FName(*G),
+									S->DataAssetInstance.Get()
+								);
+								GetAllGroups(S);
+							}
+						}
+						Subsystem->SaveToDisk();
+						Subsystem->MergeStagedIntoPinned();
+					}
+					Refresh();
+					return FReply::Handled();
+				})
+			]
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				SNew(SButton)
+				.Text(FText::FromString("Cancel"))
+				.OnClicked_Lambda([Dialog]()
+				{
+					Dialog->RequestDestroyWindow();
+					return FReply::Handled();
+				})
+			]
+		]
+	);
+
+	FSlateApplication::Get().AddWindow(Dialog);
+	GroupStr = S->GroupStr;
 }
 
 void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
@@ -801,27 +1420,28 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 		return;
 	}
 	TSharedRef<FState> S = MakeShared<FState>();
-	S->BP    = BP;
+	S->BP = BP;
 	S->Class = TargetClass;
+	S->bIsDataAssetClass = TargetClass->IsChildOf(UPrimaryDataAsset::StaticClass());
 	if (!GroupStr.IsEmpty())
 	{
 		S->GroupStr = GroupStr;
 	}
 	// Local BP variables
-	
+
 	TArray<FName> TmpVar;
 	GatherLocalVars(BP, TmpVar);
 	for (const FName& N : TmpVar) S->LocalVarOpts.Add(MakeShared<FString>(N.ToString()));
 	if (S->LocalVarOpts.Num()) S->LocalVarSel = S->LocalVarOpts[0];
-	
+
 
 	// Parent C++ properties
-	
+
 	TArray<FName> TmpProp;
 	GatherNativeProps(TargetClass, TmpProp);
 	for (const FName& N : TmpProp) S->NativePropOpts.Add(MakeShared<FString>(N.ToString()));
 	if (S->NativePropOpts.Num()) S->NativePropSel = S->NativePropOpts[0];
-	
+
 
 	BuildComponentOptions(BP, TargetClass, S->CompOpts);
 	GetAllGroups(S);
@@ -856,7 +1476,7 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 			else
 			{
 				UE_LOG(LogTemp, Warning, TEXT("PinVar: (init) Template not found for '%s' (key '%s') on %s"),
-					*S->CompSel->Label.ToString(), *S->CompSel->TemplateName.ToString(), *S->Class->GetName());
+				       *S->CompSel->Label.ToString(), *S->CompSel->TemplateName.ToString(), *S->Class->GetName());
 			}
 		}
 	}
@@ -872,7 +1492,8 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 	AddVariableWindow = Dialog;
 
 	// Helper for searchable combos over FString arrays
-	auto MakeStringCombo = [](TArray<TSharedPtr<FString>>& Source, TSharedPtr<FString>& Sel, TFunction<void(TSharedPtr<FString>)> OnSel)
+	auto MakeStringCombo = [](TArray<TSharedPtr<FString>>& Source, TSharedPtr<FString>& Sel,
+	                          TFunction<void(TSharedPtr<FString>)> OnSel)
 	{
 		return SNew(SSearchableComboBox)
 			.OptionsSource(&Source)
@@ -899,47 +1520,71 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 		SNew(SVerticalBox)
 
 		// Source segment
-		+ SVerticalBox::Slot().AutoHeight().Padding(12,12,12,6)
+		+ SVerticalBox::Slot().AutoHeight().Padding(12, 12, 12, 6)
 		[
 			SNew(SSegmentedControl<int32>)
-			.Value_Lambda([S](){ return static_cast<int>(S->SourceType); })
-			.OnValueChanged_Lambda([S](int32 NewIdx){ S->SourceType = static_cast<FState::ESourceType>(NewIdx); })
+			.Value_Lambda([S]() { return static_cast<int>(S->SourceType); })
+			.OnValueChanged_Lambda([S](int32 NewIdx) { S->SourceType = static_cast<FState::ESourceType>(NewIdx); })
 			+ SSegmentedControl<int32>::Slot(0).Text(FText::FromString("Blueprint local"))
 			+ SSegmentedControl<int32>::Slot(1).Text(FText::FromString("Parent C++"))
 			+ SSegmentedControl<int32>::Slot(2).Text(FText::FromString("Component"))
 		]
 		// Local BP
-		+ SVerticalBox::Slot().AutoHeight().Padding(12,6,12,4)
+		+ SVerticalBox::Slot().AutoHeight().Padding(12, 6, 12, 4)
 		[
 			SNew(SVerticalBox)
-			.Visibility_Lambda([S](){ return S->SourceType == FState::ESourceType::LocalBPVar ? EVisibility::Visible : EVisibility::Collapsed; })
-			+ SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).Text(FText::FromString("Variable:")) ]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0,2,0,0)
+			.Visibility_Lambda([S]()
+			{
+				return S->SourceType == FState::ESourceType::LocalBPVar
+					       ? EVisibility::Visible
+					       : EVisibility::Collapsed;
+			})
+			+ SVerticalBox::Slot().AutoHeight()
+			[
+				SNew(STextBlock).Text(FText::FromString("Variable:"))
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 2, 0, 0)
 			[
 				MakeStringCombo(S->LocalVarOpts, S->LocalVarSel, nullptr)
 			]
 		]
-		
+
 		// Parent C++
-		+ SVerticalBox::Slot().AutoHeight().Padding(12,6,12,4)
+		+ SVerticalBox::Slot().AutoHeight().Padding(12, 6, 12, 4)
 		[
 			SNew(SVerticalBox)
-			.Visibility_Lambda([S](){ return S->SourceType==FState::ESourceType::LocalCppVar ? EVisibility::Visible : EVisibility::Collapsed; })
-			+ SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).Text(FText::FromString("Property:")) ]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0,2,0,0)
+			.Visibility_Lambda([S]()
+			{
+				return S->SourceType == FState::ESourceType::LocalCppVar
+					       ? EVisibility::Visible
+					       : EVisibility::Collapsed;
+			})
+			+ SVerticalBox::Slot().AutoHeight()
+			[
+				SNew(STextBlock).Text(FText::FromString("Property:"))
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 2, 0, 0)
 			[
 				MakeStringCombo(S->NativePropOpts, S->NativePropSel, nullptr)
 			]
 		]
-		
+
 		// Component
-		+ SVerticalBox::Slot().AutoHeight().Padding(12,6,12,4)
+		+ SVerticalBox::Slot().AutoHeight().Padding(12, 6, 12, 4)
 		[
 			SNew(SVerticalBox)
-			.Visibility_Lambda([S](){ return S->SourceType==FState::ESourceType::ComponentVar ? EVisibility::Visible : EVisibility::Collapsed; })
-		
-			+ SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).Text(FText::FromString("Component:")) ]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0,2,0,4)
+			.Visibility_Lambda([S]()
+			{
+				const bool bShow = (S->SourceType == FState::ESourceType::ComponentVar) && !S->bIsDataAssetClass;
+				return bShow ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+
+
+			+ SVerticalBox::Slot().AutoHeight()
+			[
+				SNew(STextBlock).Text(FText::FromString("Component:"))
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 2, 0, 4)
 			[
 				SNew(SSearchableComboBox)
 				.OptionsSource(&S->CompOptLabels)
@@ -952,19 +1597,23 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 					S->CompSel.Reset();
 					S->CompPropOpts.Reset();
 					S->CompPropSel.Reset();
-		
-					if (!S->Class || !NewSel.IsValid()) { if (S->CompPropCombo.IsValid()) S->CompPropCombo->RefreshOptions(); return; }
-		
+
+					if (!S->Class || !NewSel.IsValid())
+					{
+						if (S->CompPropCombo.IsValid()) S->CompPropCombo->RefreshOptions();
+						return;
+					}
+
 					// Resolve label -> option
 					if (TSharedPtr<FCompOption>* FoundPtr = S->LabelToCompOpt.Find(*NewSel))
 					{
 						S->CompSel = *FoundPtr;
-		
+
 						UActorComponent* Tmpl =
 							S->CompSel->Template.IsValid()
 								? S->CompSel->Template.Get()
 								: Cast<UActorComponent>(FindComponentTemplate(S->Class, S->CompSel->TemplateName));
-		
+
 						if (Tmpl)
 						{
 							TArray<FName> P;
@@ -975,10 +1624,11 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 						else
 						{
 							UE_LOG(LogTemp, Warning, TEXT("PinVar: Template not found for '%s' (key '%s') on %s"),
-								*S->CompSel->Label.ToString(), *S->CompSel->TemplateName.ToString(), *S->Class->GetName());
+							       *S->CompSel->Label.ToString(), *S->CompSel->TemplateName.ToString(),
+							       *S->Class->GetName());
 						}
 					}
-		
+
 					if (S->CompPropCombo.IsValid())
 					{
 						S->CompPropCombo->RefreshOptions();
@@ -990,264 +1640,287 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 					.Text_Lambda([S]()
 					{
 						return S->CompSel.IsValid()
-							? FText::FromName(S->CompSel->Label)
-							: FText::FromString(TEXT("None"));
+							       ? FText::FromName(S->CompSel->Label)
+							       : FText::FromString(TEXT("None"));
 					})
 				]
 			]
-		
-			+ SVerticalBox::Slot().AutoHeight().Padding(0,4,0,0)
+
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
 			[
 				SNew(STextBlock).Text(FText::FromString("Property:"))
 			]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0,2,0,0)
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 2, 0, 0)
 			[
 				SAssignNew(S->CompPropCombo, SSearchableComboBox)
-				.OptionsSource(&S->CompPropOpts) // TArray<TSharedPtr<FString>>
-				.OnGenerateWidget_Lambda([](TSharedPtr<FString> It)
-				{
-					return SNew(STextBlock).Text(FText::FromString(It.IsValid() ? *It : TEXT("None")));
-				})
-				.OnSelectionChanged_Lambda([S](TSharedPtr<FString> NewSel, ESelectInfo::Type Info)
-				{
-					// If Enter was pressed with no explicit row highlighted, pick first filtered option
-					if (!NewSel.IsValid() && S->CompPropOpts.Num() > 0)
-					{
-						NewSel = S->CompPropOpts[0];
-						if (S->CompPropCombo.IsValid())
-						{
-							S->CompPropCombo->SetSelectedItem(NewSel);
-						}
-					}
+				                                                 .OptionsSource(&S->CompPropOpts)
+ // TArray<TSharedPtr<FString>>
+				                                                 .OnGenerateWidget_Lambda([](TSharedPtr<FString> It)
+				                                                 {
+					                                                 return SNew(STextBlock).Text(
+							                                                 FText::FromString(
+								                                                 It.IsValid() ? *It : TEXT("None")));
+				                                                 })
+				                                                 .OnSelectionChanged_Lambda(
+					                                                 [S](TSharedPtr<FString> NewSel,
+					                                                     ESelectInfo::Type Info)
+					                                                 {
+						                                                 // If Enter was pressed with no explicit row highlighted, pick first filtered option
+						                                                 if (!NewSel.IsValid() && S->CompPropOpts.Num()
+							                                                 > 0)
+						                                                 {
+							                                                 NewSel = S->CompPropOpts[0];
+							                                                 if (S->CompPropCombo.IsValid())
+							                                                 {
+								                                                 S->CompPropCombo->SetSelectedItem(
+									                                                 NewSel);
+							                                                 }
+						                                                 }
 
-					S->CompPropSel = NewSel;
+						                                                 S->CompPropSel = NewSel;
 
-					// Close the dropdown when selection comes from keyboard (Enter/Navigation)
-					if (Info == ESelectInfo::OnKeyPress || Info == ESelectInfo::OnNavigation)
-					{
-						if (S->CompPropCombo.IsValid())
-						{
-							S->CompPropCombo->SetIsOpen(false);
-						}
-					}
-				})
-				.InitiallySelectedItem(S->CompPropSel)
+						                                                 // Close the dropdown when selection comes from keyboard (Enter/Navigation)
+						                                                 if (Info == ESelectInfo::OnKeyPress || Info ==
+							                                                 ESelectInfo::OnNavigation)
+						                                                 {
+							                                                 if (S->CompPropCombo.IsValid())
+							                                                 {
+								                                                 S->CompPropCombo->SetIsOpen(false);
+							                                                 }
+						                                                 }
+					                                                 })
+				                                                 .InitiallySelectedItem(S->CompPropSel)
 				[
 					SNew(STextBlock)
 					.Text_Lambda([S]()
 					{
 						return S->CompPropSel.IsValid()
-							? FText::FromString(*S->CompPropSel)
-							: FText::FromString(TEXT("None"));
+							       ? FText::FromString(*S->CompPropSel)
+							       : FText::FromString(TEXT("None"));
 					})
 				]
 			]
 		]
 
 		// Group
-		+ SVerticalBox::Slot().AutoHeight().Padding(12,10,12,8)
+		+ SVerticalBox::Slot().AutoHeight().Padding(12, 10, 12, 8)
 		[
-			SNew(STextBlock).Text(FText::FromString("Group Name (A or A,B):"))
+			SNew(STextBlock).Text(FText::FromString("Group Name (`|` for subcategories):"))
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(12,0,12,12)
+		+ SVerticalBox::Slot().AutoHeight().Padding(12, 0, 12, 12)
 		[
 			SNew(SEditableTextBox)
 			.Text_Lambda([S]() { return FText::FromString(S->GroupStr); })
-			.OnTextChanged_Lambda([S](const FText& T){ S->GroupStr = T.ToString(); })
+			.OnTextChanged_Lambda([S](const FText& T) { S->GroupStr = T.ToString(); })
 		]
 
 
 		// Buttons
-		+ SVerticalBox::Slot().AutoHeight().Padding(12,0,12,12)
-[
-    SNew(SHorizontalBox)
+		+ SVerticalBox::Slot().AutoHeight().Padding(12, 0, 12, 12)
+		[
+			SNew(SHorizontalBox)
 
-    // LEFT: pick an existing group
-    + SHorizontalBox::Slot()
-    .AutoWidth()
-    .VAlign(VAlign_Center)
-    [
-        SNew(SSearchableComboBox)
-        .OptionsSource(&S->ExistingGroupOpts)
-        .OnGenerateWidget_Lambda([](TSharedPtr<FString> It)
-        {
-            return SNew(STextBlock).Text(FText::FromString(It.IsValid() ? *It : TEXT("None")));
-        })
-        .OnSelectionChanged_Lambda([S](TSharedPtr<FString> NewSel, ESelectInfo::Type)
-        {
-            S->ExistingGroupSel = NewSel;
-        })
-        .InitiallySelectedItem(S->ExistingGroupSel)
-        [
-            SNew(STextBlock)
-            .Text_Lambda([S]()
-            {
-                return S->ExistingGroupSel.IsValid()
-                    ? FText::FromString(*S->ExistingGroupSel)
-                    : FText::FromString(TEXT("Select group…"));
-            })
-        ]
-    ]
+			// LEFT: pick an existing group
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			[
+				SNew(SSearchableComboBox)
+				.OptionsSource(&S->ExistingGroupOpts)
+				.OnGenerateWidget_Lambda([](TSharedPtr<FString> It)
+				{
+					return SNew(STextBlock).Text(FText::FromString(It.IsValid() ? *It : TEXT("None")));
+				})
+				.OnSelectionChanged_Lambda([S](TSharedPtr<FString> NewSel, ESelectInfo::Type)
+				{
+					S->ExistingGroupSel = NewSel;
+				})
+				.InitiallySelectedItem(S->ExistingGroupSel)
+				[
+					SNew(STextBlock)
+					.Text_Lambda([S]()
+					{
+						return S->ExistingGroupSel.IsValid()
+							       ? FText::FromString(*S->ExistingGroupSel)
+							       : FText::FromString(TEXT("Select group…"));
+					})
+				]
+			]
 
-    // LEFT: "Add to existing group" button
-    + SHorizontalBox::Slot()
-    .AutoWidth()
-    .Padding(8,0,0,0)
-    .VAlign(VAlign_Center)
-    [
-        SNew(SButton)
-        .IsEnabled_Lambda([S](){ return S->ExistingGroupSel.IsValid() && !S->ExistingGroupSel->IsEmpty(); })
-    	.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
-        .Text(FText::FromString("Add to existing group"))
-        .OnClicked_Lambda([this, S]()
-        {
-            if (!GEditor || !S->Class || !S->ExistingGroupSel.IsValid() || S->ExistingGroupSel->IsEmpty())
-                return FReply::Handled();
+			// LEFT: "Add to existing group" button
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(8, 0, 0, 0)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SButton)
+				.IsEnabled_Lambda([S]() { return S->ExistingGroupSel.IsValid() && !S->ExistingGroupSel->IsEmpty(); })
+				.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
+				.Text(FText::FromString("Add to existing group"))
+				.OnClicked_Lambda([this, S]()
+				{
+					if (!GEditor || !S->Class || !S->ExistingGroupSel.IsValid() || S->ExistingGroupSel->IsEmpty())
+						return FReply::Handled();
 
-            const FName GroupName = FName(**S->ExistingGroupSel);
-            FName VarName = NAME_None;
+					const FName GroupName = FName(**S->ExistingGroupSel);
+					FName VarName = NAME_None;
 
-            // Common helper to stage non-component vars
-            auto StageSimple = [&](const FName& InVar)
-            {
-                if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
-                {
-                    Subsystem->StagePinVariable(S->Class->GetFName(), InVar, GroupName, NAME_None);
-                    Subsystem->SaveToDisk();
-                    Subsystem->MergeStagedIntoPinned();
-                }
-            };
+					// Common helper to stage non-component vars
+					auto StageSimple = [&](const FName& InVar)
+					{
+						if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
+						{
+							Subsystem->StagePinVariable(S->Class->GetFName(), InVar, GroupName, NAME_None);
+							Subsystem->SaveToDisk();
+							Subsystem->MergeStagedIntoPinned();
+						}
+					};
 
-            switch (S->SourceType)
-            {
-                case FState::ESourceType::LocalBPVar: // Blueprint local
-                    if (S->LocalVarSel.IsValid()) VarName = FName(**S->LocalVarSel);
-                    if (!VarName.IsNone()) StageSimple(VarName);
-                    break;
+					switch (S->SourceType)
+					{
+					case FState::ESourceType::LocalBPVar: // Blueprint local
+						if (S->LocalVarSel.IsValid()) VarName = FName(**S->LocalVarSel);
+						if (!VarName.IsNone()) StageSimple(VarName);
+						break;
 
-                case FState::ESourceType::LocalCppVar: // Parent C++
-                    if (S->NativePropSel.IsValid()) VarName = FName(**S->NativePropSel);
-                    if (!VarName.IsNone()) StageSimple(VarName);
-                    break;
+					case FState::ESourceType::LocalCppVar: // Parent C++
+						if (S->NativePropSel.IsValid()) VarName = FName(**S->NativePropSel);
+						if (!VarName.IsNone()) StageSimple(VarName);
+						break;
 
-                case FState::ESourceType::ComponentVar: // Component
-                    if (S->CompSel.IsValid() && S->CompPropSel.IsValid())
-                    {
-                        UActorComponent* Tmpl =
-                            S->CompSel->Template.IsValid()
-                                ? S->CompSel->Template.Get()
-                                : Cast<UActorComponent>(FindComponentTemplate(S->Class, S->CompSel->TemplateName));
+					case FState::ESourceType::ComponentVar: // Component
+						if (S->CompSel.IsValid() && S->CompPropSel.IsValid())
+						{
+							UActorComponent* Tmpl =
+								S->CompSel->Template.IsValid()
+									? S->CompSel->Template.Get()
+									: Cast<UActorComponent>(FindComponentTemplate(S->Class, S->CompSel->TemplateName));
 
-                        if (Tmpl)
-                        {
-                            const FName TemplateKey = Tmpl->GetFName();
-                            const FName PrettyVar   = S->CompSel->Label;
-                            VarName = FName(**S->CompPropSel);
+							if (Tmpl)
+							{
+								const FName TemplateKey = Tmpl->GetFName();
+								const FName PrettyVar = S->CompSel->Label;
+								VarName = FName(**S->CompPropSel);
 
-                            if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
-                            {
-                                Subsystem->StagePinVariableWithTemplate(
-                                    S->Class->GetFName(), VarName, GroupName, TemplateKey, Tmpl, PrettyVar);
-                                Subsystem->SaveToDisk();
-                                Subsystem->MergeStagedIntoPinned();
-                            }
-                        }
-                    }
-                    break;
-            }
+								if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
+								{
+									Subsystem->StagePinVariableWithTemplate(
+										S->Class->GetFName(), VarName, GroupName, TemplateKey, Tmpl, PrettyVar);
+									Subsystem->SaveToDisk();
+									Subsystem->MergeStagedIntoPinned();
+								}
+							}
+						}
+						break;
+					}
 
-            Refresh(); // keep dialog open
-            return FReply::Handled();
-        })
-    ]
+					Refresh(); // keep dialog open
+					return FReply::Handled();
+				})
+			]
 
-    // SPACER
-    + SHorizontalBox::Slot().FillWidth(1.f)
+			// SPACER
+			+ SHorizontalBox::Slot().FillWidth(1.f)
 
-    // RIGHT: "Add" (from text box) and "Cancel"
-    + SHorizontalBox::Slot().AutoWidth().Padding(0,0,8,0)
-    [
-        SNew(SButton)
-        .ButtonStyle(FAppStyle::Get(), "PrimaryButton")
-        .Text(FText::FromString("Add"))
-        .OnClicked_Lambda([this, S]()
-        {
-            if (!GEditor || !S->Class) return FReply::Handled();
+			// RIGHT: "Add" (from text box) and "Cancel"
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 8, 0)
+			[
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
+				.Text(FText::FromString("Add"))
+				.OnClicked_Lambda([this, S]()
+				{
+					if (!GEditor || !S->Class) return FReply::Handled();
 
-            // Accept empty group -> "Default"
-            FString GroupCsv = S->GroupStr.TrimStartAndEnd();
-            if (GroupCsv.IsEmpty()) { GroupCsv = TEXT("Default"); }
+					// Accept empty group -> "Default"
+					FString GroupCsv = S->GroupStr.TrimStartAndEnd();
+					if (GroupCsv.IsEmpty()) { GroupCsv = TEXT("Default"); }
 
-            FName VarName = NAME_None;
-            FName CompName = NAME_None;
+					FName VarName = NAME_None;
+					FName CompName = NAME_None;
 
-            switch (S->SourceType)
-            {
-                case FState::ESourceType::LocalBPVar: if (S->LocalVarSel.IsValid())  VarName = FName(**S->LocalVarSel);  break;
-                case FState::ESourceType::LocalCppVar: if (S->NativePropSel.IsValid()) VarName = FName(**S->NativePropSel); break;
-                case FState::ESourceType::ComponentVar:
-                {
-                    if (S->CompSel.IsValid() && S->CompPropSel.IsValid())
-                    {
-                        UActorComponent* Tmpl =
-                            S->CompSel->Template.IsValid()
-                                ? S->CompSel->Template.Get()
-                                : Cast<UActorComponent>(FindComponentTemplate(S->Class, S->CompSel->TemplateName));
+					switch (S->SourceType)
+					{
+					case FState::ESourceType::LocalBPVar: if (S->LocalVarSel.IsValid())
+							VarName = FName(
+								**S->LocalVarSel);
+						break;
+					case FState::ESourceType::LocalCppVar: if (S->NativePropSel.IsValid())
+							VarName = FName(
+								**S->NativePropSel);
+						break;
+					case FState::ESourceType::ComponentVar:
+						{
+							if (S->CompSel.IsValid() && S->CompPropSel.IsValid())
+							{
+								UActorComponent* Tmpl =
+									S->CompSel->Template.IsValid()
+										? S->CompSel->Template.Get()
+										: Cast<UActorComponent>(
+											FindComponentTemplate(S->Class, S->CompSel->TemplateName));
 
-                        const FName TemplateKey = Tmpl ? Tmpl->GetFName() : S->CompSel->TemplateName;
-                        const FName PrettyVar   = S->CompSel->Label;
-                        VarName = FName(**S->CompPropSel);
+								const FName TemplateKey = Tmpl ? Tmpl->GetFName() : S->CompSel->TemplateName;
+								const FName PrettyVar = S->CompSel->Label;
+								VarName = FName(**S->CompPropSel);
 
-                        if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
-                        {
-                            TArray<FString> Groups;
-                            GroupCsv.ParseIntoArray(Groups, TEXT(","), true);
-                            for (FString& G : Groups)
-                            {
-                                G = G.TrimStartAndEnd();
-                                if (G.IsEmpty()) continue;
-                                Subsystem->StagePinVariableWithTemplate(
-                                    S->Class->GetFName(), VarName, FName(*G), TemplateKey, Tmpl, PrettyVar);
-                                GetAllGroups(S);
-                            }
-                            Subsystem->SaveToDisk();
-                            Subsystem->MergeStagedIntoPinned();
-                        }
-                        Refresh();
-                        return FReply::Handled();
-                    }
-                }
-                break;
-            }
+								if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
+								{
+									TArray<FString> Groups;
+									GroupCsv.ParseIntoArray(Groups, TEXT(","), true);
+									for (FString& G : Groups)
+									{
+										G = G.TrimStartAndEnd();
+										if (G.IsEmpty()) continue;
+										Subsystem->StagePinVariableWithTemplate(
+											S->Class->GetFName(), VarName, FName(*G), TemplateKey, Tmpl, PrettyVar);
+										GetAllGroups(S);
+									}
+									Subsystem->SaveToDisk();
+									Subsystem->MergeStagedIntoPinned();
+								}
+								Refresh();
+								return FReply::Handled();
+							}
+						}
+						break;
+					}
 
-            if (VarName.IsNone()) { UE_LOG(LogTemp, Warning, TEXT("PinVar: Add aborted — no variable selected.")); return FReply::Handled(); }
+					if (VarName.IsNone())
+					{
+						UE_LOG(LogTemp, Warning, TEXT("PinVar: Add aborted — no variable selected."));
+						return FReply::Handled();
+					}
 
-            if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
-            {
-                TArray<FString> Groups;
-                GroupCsv.ParseIntoArray(Groups, TEXT(","), true);
-                for (FString& G : Groups)
-                {
-                    G = G.TrimStartAndEnd();
-                    if (!G.IsEmpty())
-                    {
-                        Subsystem->StagePinVariable(S->Class->GetFName(), VarName, FName(*G), CompName);
-                        GetAllGroups(S);
-                    }
-                }
-                Subsystem->SaveToDisk();
-            }
-            Refresh();
-            return FReply::Handled();
-        })
-    ]
-    + SHorizontalBox::Slot().AutoWidth()
-    [
-        SNew(SButton)
-        .Text(FText::FromString("Cancel"))
-        .OnClicked_Lambda([Dialog](){ Dialog->RequestDestroyWindow(); return FReply::Handled(); })
-    ]
-]
+					if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
+					{
+						TArray<FString> Groups;
+						GroupCsv.ParseIntoArray(Groups, TEXT(","), true);
+						for (FString& G : Groups)
+						{
+							G = G.TrimStartAndEnd();
+							if (!G.IsEmpty())
+							{
+								Subsystem->StagePinVariable(S->Class->GetFName(), VarName, FName(*G), CompName);
+								GetAllGroups(S);
+							}
+						}
+						Subsystem->SaveToDisk();
+					}
+					Refresh();
+					return FReply::Handled();
+				})
+			]
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				SNew(SButton)
+				.Text(FText::FromString("Cancel"))
+				.OnClicked_Lambda([Dialog]()
+				{
+					Dialog->RequestDestroyWindow();
+					return FReply::Handled();
+				})
+			]
+		]
 	);
 	FSlateApplication::Get().AddWindow(Dialog);
 	GroupStr = S->GroupStr;
@@ -1272,18 +1945,20 @@ void SPinVarPanel::GatherNativeProps(UClass* Class, TArray<FName>& OutProps) con
 	OutProps.Reset();
 	if (!Class) return;
 
+	const bool bIsBlueprintClass = (Class->ClassGeneratedBy != nullptr);
+
 	for (TFieldIterator<FProperty> It(Class, EFieldIteratorFlags::IncludeSuper); It; ++It)
 	{
 		FProperty* P = *It;
 		if (!IsEditableProperty(P)) continue;
-		
-		UStruct* OwnerStruct = P->GetOwnerStruct();
-		UClass*  OwnerClass  = Cast<UClass>(OwnerStruct);
-		
-		const bool bDeclaredOnNative = (OwnerClass && OwnerClass->ClassGeneratedBy == nullptr);
-		const bool bDeclaredOnThisBP = (OwnerClass == Class);
 
-		if (bDeclaredOnNative && !bDeclaredOnThisBP)
+		UStruct* OwnerStruct = P->GetOwnerStruct();
+		UClass* OwnerClass = Cast<UClass>(OwnerStruct);
+
+		const bool bDeclaredOnNative = (OwnerClass && OwnerClass->ClassGeneratedBy == nullptr);
+		const bool bDeclaredOnThisClass = (OwnerClass == Class);
+
+		if (bDeclaredOnNative && (!bIsBlueprintClass || !bDeclaredOnThisClass))
 		{
 			OutProps.Add(P->GetFName());
 		}
