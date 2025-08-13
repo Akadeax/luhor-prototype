@@ -207,15 +207,18 @@ void UMeleeAttackerComponent::OnContactCollisionBeginOverlap(
 {
 	UHittableComponent* hittable{ Cast<UHittableComponent>(OtherComp->GetAttachParent()) };
 	if (!hittable) return;
+	if (hittable->GetOwner() == GetOwner()) return;
 
 	const FMeleeAttackData& data{ GetCurrentAttack() };
 
 	FHittableHitData hitData{ data.Damage, GetOwner(), Faction };
-	if (UUpgradesComponent* Upgrades = Cast<UUpgradesComponent>(GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass())))
+	
+	if (UUpgradesComponent* Upgrades{ Cast<UUpgradesComponent>(GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass())) })
 	{
-		FStatModifier modifiers{Upgrades->GetCurrentModifier()};
-		hitData.Damage = (data.Damage+ modifiers.MeleeAttackModifier ) * modifiers.MeleeAttackMultiplier;
+		const FStatModifier modifiers{ Upgrades->GetCurrentModifier() };
+		hitData.Damage = (data.Damage + modifiers.MeleeAttackModifier) * modifiers.MeleeAttackMultiplier;
 	}
+	
 	hittable->Hit(hitData);
 	OnMeleeAttackHit.Broadcast(hitData);
 }
