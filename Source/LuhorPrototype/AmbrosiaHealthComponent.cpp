@@ -3,6 +3,7 @@
 
 #include "AmbrosiaHealthComponent.h"
 
+#include "LevelGameInstanceSubsystem.h"
 #include "Upgrades/UpgradesComponent.h"
 #include "Util/FDebugUtil.h"
 COMPDEP_IMPL_START(UAmbrosiaHealthComponent)
@@ -15,16 +16,26 @@ void UAmbrosiaHealthComponent::BeginPlay()
 	CurrentHealth = StartingAmbrosia;
 	UpgradesComponent = Cast<UUpgradesComponent>(GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass()));
 	FDebugUtil::QuitCheckf(UpgradesComponent, TEXT("Couldn't find the UpgradesComponent"));
+
+	const ULevelGameInstanceSubsystem* sub{ GetWorld()->GetGameInstance()->GetSubsystem<ULevelGameInstanceSubsystem>() };
+	check(sub);
+
+	if (sub->PlayerSaveData.Health == -1) return;
+	
+	CurrentHealth = sub->PlayerSaveData.Health;
+	CurrentPoisonedAmbrosia = sub->PlayerSaveData.PoisonedAmbrosia;
 }
 
 void UAmbrosiaHealthComponent::TickComponent(float DeltaTime, ELevelTick TickType,
                                              FActorComponentTickFunction* ThisTickFunction)
 {
-	if (!InLastStand)
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	
+	if (!InLastStand && DoDrain)
 	{
 		CurrentHealth -= DeltaTime * PassiveAmbrosiaDrain * UpgradesComponent->GetCurrentModifier().
 		                                                                       AmbrosiaDrainMultiplier;
-
+		
 		if (UUpgradesComponent* Upgrades = Cast<UUpgradesComponent>(
 			GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass())))
 		{
@@ -40,7 +51,6 @@ void UAmbrosiaHealthComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 			OnLastStandStarted.Broadcast();
 		}
 	}
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
 void UAmbrosiaHealthComponent::Damage(float Amount)
@@ -111,4 +121,24 @@ bool UAmbrosiaHealthComponent::TrySpendSpecialCharge()
 		return true;
 	}
 	return false;
+}
+
+void UAmbrosiaHealthComponent::AddSpecialChargeSlots(const int Amount)
+{
+	MaxPoisonedAmbrosia += PoisonedAmbrosiaPerCharge * Amount;
+}
+
+float UAmbrosiaHealthComponent::GetCurrentPoisonedAmbrosia() const
+{
+	return CurrentPoisonedAmbrosia;
+}
+
+float UAmbrosiaHealthComponent::GetCurrentPoisonedAmbrosiaPercentage() const
+{
+	return CurrentPoisonedAmbrosia / MaxPoisonedAmbrosia;
+}
+
+int UAmbrosiaHealthComponent::GetSpecialAttackCharges() const
+{
+	return FMath::TruncToInt(CurrentPoisonedAmbrosia / PoisonedAmbrosiaPerCharge);
 }

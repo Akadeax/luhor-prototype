@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "PlayerSaveData.h"
 #include "RoomData.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "LevelGameInstanceSubsystem.generated.h"
@@ -21,8 +22,11 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void LoadRandomLevel();
 	
+	UPROPERTY(BlueprintReadOnly) FPlayerSaveData PlayerSaveData;
+	
 private:
 	void RefillRoomsLeft();
+	void SavePlayerData();
 	
 	UPROPERTY() TObjectPtr<URoomData> RoomData;
 	TArray<FRoom> RoomsLeft;

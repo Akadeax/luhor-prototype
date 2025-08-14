@@ -15,11 +15,12 @@ ARangedAttackProjectile::ARangedAttackProjectile()
 	
 	constexpr ECollisionChannel HITBOX_CHANNEL{ ECC_GameTraceChannel1 };
 	constexpr ECollisionChannel ATTACKBOX_CHANNEL{ ECC_GameTraceChannel2 };
-	
+
+	Collision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Collision->SetCollisionResponseToAllChannels(ECR_Ignore);
 	
-	Collision->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
-	Collision->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
+	Collision->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Overlap);
+	Collision->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Overlap);
 	Collision->SetCollisionObjectType(ATTACKBOX_CHANNEL);
 	Collision->SetCollisionResponseToChannel(HITBOX_CHANNEL, ECR_Overlap);
 	Collision->SetCollisionResponseToChannel(ATTACKBOX_CHANNEL, ECR_Ignore);
@@ -38,7 +39,7 @@ void ARangedAttackProjectile::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	const FVector offsetPerSec{ ProjectileData.Direction.Vector() * ProjectileData.RangedAttack->AttackData.ProjectileSpeed };
-	AddActorWorldOffset(offsetPerSec * DeltaSeconds);
+	AddActorWorldOffset(offsetPerSec * DeltaSeconds, true);
 }
 
 void ARangedAttackProjectile::OnCollisionBeginOverlap(
@@ -50,7 +51,12 @@ void ARangedAttackProjectile::OnCollisionBeginOverlap(
 	const FHitResult&)
 {
 	UHittableComponent* hittable{ Cast<UHittableComponent>(OtherComp->GetAttachParent()) };
-	if (!hittable) return;
+	if (!hittable)
+	{
+		Destroy();
+		return;
+	}
+	
 	if (hittable->GetFaction() == ProjectileData.SourceFaction) return;
 	
 	const FHittableHitData data{ ProjectileData.RangedAttack->AttackData.Damage, ProjectileData.Source, ProjectileData.SourceFaction };
