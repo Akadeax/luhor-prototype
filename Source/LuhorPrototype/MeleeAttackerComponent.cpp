@@ -45,9 +45,14 @@ void UMeleeAttackerComponent::BeginPlay()
 	MovementComponent = FComponentUtil::GetFirstComponentOfClass<ULuhorMovementComponent>(GetOwner());
 }
 
+bool UMeleeAttackerComponent::CanAttack() const
+{
+	return CurrentAttackState == EAttackState::None;
+}
+
 bool UMeleeAttackerComponent::TryAttack()
 {
-	if (CurrentAttackState != EAttackState::None)
+	if (!CanAttack())
 	{
 		if (!AttackQueued && CurrentChainIndex != MeleeAttackChain->Attacks.Num() - 1)
 		{
