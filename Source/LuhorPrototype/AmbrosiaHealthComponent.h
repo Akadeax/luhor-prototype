@@ -76,7 +76,7 @@ protected:
 	float PassiveAmbrosiaDrain{ 1.25f };
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia")
-	float StartingAmbrosia{50};
+	float StartingAmbrosia{ 50.f };
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia" , meta = (ToolTip = "How much ambrosia the player needs to gather to get out of the last stand mode"))
 	float LastStandEndCutoff{ 5.f };

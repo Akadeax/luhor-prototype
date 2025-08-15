@@ -44,20 +44,18 @@ class LUHORPROTOTYPE_API UUpgradesComponent : public UActorComponent
 {
 	GENERATED_BODY()
 public:	
-	// Sets default values for this component's properties
 	UUpgradesComponent();
-	// Called every frame
 	void RecalculateModifier();
 	FStatModifier GetCurrentModifier();
-	UFUNCTION(BlueprintCallable)
-	TArray<UBaseUpgrade*> GetUpgrades(){return Upgrades;}
+
 	UFUNCTION(BlueprintCallable)
 	void AddUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass);
 	UFUNCTION(BlueprintCallable)
 	void RemoveUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass);
-protected:
-	// Called when the game starts
 
+	virtual void BeginPlay() override;
+	TArray<TSubclassOf<UBaseUpgrade>> GetUpgrades() const;
+protected:
 	FStatModifier CurrentStats{};
 	UPROPERTY()
 	TArray<TObjectPtr<UBaseUpgrade>> Upgrades;

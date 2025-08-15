@@ -34,9 +34,11 @@ void ULevelGameInstanceSubsystem::RefillRoomsLeft()
 void ULevelGameInstanceSubsystem::SavePlayerData()
 {
 	const APlayerController* controller{ UGameplayStatics::GetPlayerController(this, 0) };
-	const UAmbrosiaHealthComponent* comp{ controller->GetPawn()->FindComponentByClass<UAmbrosiaHealthComponent>() };
+	const UAmbrosiaHealthComponent* healthComp{ controller->GetPawn()->FindComponentByClass<UAmbrosiaHealthComponent>() };
+	const UUpgradesComponent* upgradesComp{ controller->GetPawn()->FindComponentByClass<UUpgradesComponent>() };
 	PlayerSaveData = {
-		comp->GetCurrentHealth(),
-		comp->GetCurrentPoisonedAmbrosia()
+		healthComp->GetCurrentHealth(),
+		healthComp->GetCurrentPoisonedAmbrosia(),
+		upgradesComp->GetUpgrades(),
 	};
 }

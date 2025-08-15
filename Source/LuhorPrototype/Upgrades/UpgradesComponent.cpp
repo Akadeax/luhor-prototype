@@ -3,6 +3,7 @@
 
 #include "UpgradesComponent.h"
 #include "BaseUpgrade.h"
+#include "LuhorPrototype/LevelGameInstanceSubsystem.h"
 // Sets default values for this component's properties
 UUpgradesComponent::UUpgradesComponent()
 {
@@ -41,6 +42,30 @@ void UUpgradesComponent::RemoveUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass)
 	}
 
 	RecalculateModifier();
+}
+
+void UUpgradesComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	const ULevelGameInstanceSubsystem* sub{ GetWorld()->GetGameInstance()->GetSubsystem<ULevelGameInstanceSubsystem>() };
+	check(sub);
+
+	if (sub->PlayerSaveData.Health == -1) return;
+
+	for (TSubclassOf<UBaseUpgrade> upgrade : sub->PlayerSaveData.Upgrades)
+	{
+		AddUpgrade(upgrade);
+	}
+}
+
+TArray<TSubclassOf<UBaseUpgrade>> UUpgradesComponent::GetUpgrades() const
+{
+	TArray<TSubclassOf<UBaseUpgrade>> result;
+	for (auto& upgrade : Upgrades)
+	{
+		result.Add(upgrade->GetClass());
+	}
+	return result;
 }
 
 

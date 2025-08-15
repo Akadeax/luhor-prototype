@@ -6,6 +6,7 @@
 #include "LevelGameInstanceSubsystem.h"
 #include "Upgrades/UpgradesComponent.h"
 #include "Util/FDebugUtil.h"
+
 COMPDEP_IMPL_START(UAmbrosiaHealthComponent)
 	COMPDEP_DEP_AnyOnActorOptional(UUpgradesComponent)
 COMPDEP_IMPL_END
@@ -64,7 +65,7 @@ void UAmbrosiaHealthComponent::Damage(float Amount)
 	}
 	else
 	{
-		CurrentHealth -= Amount;
+		CurrentHealth -= Amount / UpgradesComponent->GetCurrentModifier().DefenseMultiplier;
 		if (CurrentHealth <= 0)
 		{
 			CurrentHealth = 0;

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Upgrades/BaseUpgrade.h"
 #include "PlayerSaveData.generated.h"
 
 USTRUCT(BlueprintType)
@@ -15,4 +16,7 @@ struct FPlayerSaveData
 
 	UPROPERTY(BlueprintReadOnly)
 	float PoisonedAmbrosia{ -1.f };
+
+	UPROPERTY(BlueprintReadOnly)
+	TArray<TSubclassOf<UBaseUpgrade>> Upgrades;
 };

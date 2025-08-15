@@ -139,24 +139,15 @@ void AUpgradePilon::RefreshUpgradeOptions()
 
 	// Build a set of classes the player already owns
 
-	TArray<UBaseUpgrade*> PlayerUpgrades{PlayerUpgradeComp->GetUpgrades()};
+	TArray<TSubclassOf<UBaseUpgrade>> PlayerUpgrades{PlayerUpgradeComp->GetUpgrades()};
 	for (int j=Upgrades.Num()-1; j >= 0; j--)
 	{
-		if (!*Upgrades[j])
-		{
-			Upgrades.RemoveAt(j);
-			continue;
-		}// drop invalid entries
-		const UBaseUpgrade* CDO = Upgrades[j]->GetDefaultObject<UBaseUpgrade>();
 		for (int i = 0; i < PlayerUpgrades.Num(); i++)
 		{
-			if (CDO->GetTitle().Equals( PlayerUpgrades[i]->GetTitle()))
+			if (Upgrades[j] == PlayerUpgrades[i])
 			{
 				Upgrades.RemoveAt(j);
 				
-			} else
-			{
-				UE_LOG(LogTemp, Log, TEXT("%s, %s : %i"), *PlayerUpgrades[i]->GetTitle(), *CDO->GetTitle(),CDO->GetTitle().Equals( PlayerUpgrades[i]->GetTitle()));
 			}
 		}
 	}
