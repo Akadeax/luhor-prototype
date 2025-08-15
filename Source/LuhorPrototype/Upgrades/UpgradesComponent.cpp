@@ -25,6 +25,7 @@ void UUpgradesComponent::AddUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass)
 	
 	UBaseUpgrade* instance = NewObject<UBaseUpgrade>(this, upgradeClass);
 	instance->SetUpgradesComponent(this);
+	UE_LOG(LogTemp, Display, TEXT("Adding Upgrade: %s"),*instance->GetTitle());
 	Upgrades.Add(instance);
 	RecalculateModifier();
 }

@@ -92,7 +92,7 @@ void AUpgradePilon::Interact_Implementation(AActor* Interactor)
 				LeftShape->GetOverlappingActors(OverlappingActors, ALuhorCharacter::StaticClass());
 				bool IsPlayerInLeft = OverlappingActors.Num() > 0;
 				RightShape->GetOverlappingActors(OverlappingActors, ALuhorCharacter::StaticClass());
-				bool IsPlayerInRight = OverlappingActors.Num() > 1;
+				bool IsPlayerInRight = OverlappingActors.Num() > 0;
 				if (IsPlayerInLeft && IsPlayerInRight)
 				{
 					GEngine->AddOnScreenDebugMessage(
@@ -104,7 +104,7 @@ void AUpgradePilon::Interact_Implementation(AActor* Interactor)
 				{
 					if (!IsPlayerInLeft && IsPlayerInRight)
 					{
-						PlayerUpgradeComp->AddUpgrade(UpgradeOption2);					
+						PlayerUpgradeComp->AddUpgrade(UpgradeOption2);				
 					} else {
 						
 						PlayerUpgradeComp->AddUpgrade(UpgradeOption1);					
