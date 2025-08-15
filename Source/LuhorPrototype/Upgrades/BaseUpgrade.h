@@ -2,11 +2,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameDelegates.h"
 #include "UObject/Object.h"
 #include "UpgradesComponent.h"
 #include "LuhorPrototype/LuhorCharacter.h"
 #include "LuhorPrototype/LuhorPlayerCharacter.h"
 #include "LuhorPrototype/Util/FDebugUtil.h"
+#include "Navigation/PathFollowingComponent.h"
 #include "BaseUpgrade.generated.h"
 
 UCLASS(BlueprintType, Blueprintable)
@@ -25,12 +27,18 @@ public:
 	UFUNCTION(BlueprintPure)
 	FStatModifier GetStatModifier() const { return IsUpgradeActive ? Modifier : FStatModifier{}; }
 
+	FString GetTitle() const { return UpgradeName; }
+	FString GetDescription() const { return UpgradeText; }
 	UFUNCTION(BlueprintCallable)
 	void SetUpgradesComponent(UUpgradesComponent* Component)
 	{
 		UpgradesComponent = Component;
-		PlayerCharacter = Cast<ALuhorPlayerCharacter>(UpgradesComponent->GetOwner());
-		Init();
+		AActor* Actor = UpgradesComponent->GetOwner();
+		if (Actor != nullptr)
+		{
+			PlayerCharacter = Cast<ALuhorPlayerCharacter>(Actor);
+			Init();
+		}
 	}
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -44,7 +52,7 @@ protected:
 	FString UpgradeText{TEXT("Upgrade does stuff")};
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FString UpgradeName{TEXT("Upgrade")};
-
+	
 	UPROPERTY() 
 	UUpgradesComponent* UpgradesComponent{ nullptr };
 };

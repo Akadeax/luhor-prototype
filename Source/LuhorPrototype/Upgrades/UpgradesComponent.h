@@ -49,7 +49,8 @@ public:
 	// Called every frame
 	void RecalculateModifier();
 	FStatModifier GetCurrentModifier();
-	
+	UFUNCTION(BlueprintCallable)
+	TArray<UBaseUpgrade*> GetUpgrades(){return Upgrades;}
 	UFUNCTION(BlueprintCallable)
 	void AddUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass);
 	UFUNCTION(BlueprintCallable)
@@ -58,6 +59,6 @@ protected:
 	// Called when the game starts
 
 	FStatModifier CurrentStats{};
-	
-	TArray<UBaseUpgrade*> Upgrades;
+	UPROPERTY()
+	TArray<TObjectPtr<UBaseUpgrade>> Upgrades;
 };

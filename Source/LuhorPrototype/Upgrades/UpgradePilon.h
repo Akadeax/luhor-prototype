@@ -29,14 +29,28 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Interact")
 	UWidgetComponent* WidgetComp{};
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Interact")
-	UShapeComponent* Option1Shape{};
+	UShapeComponent* LeftShape{};
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Interact")
-	UShapeComponent* Option2Shape{};
-	// Called when the game starts or when spawned
+	UShapeComponent* RightShape{};
 	UPROPERTY(EditAnywhere)
 	TArray<TSubclassOf<UBaseUpgrade>> Upgrades{};
+	UPROPERTY()
+	UUpgradesComponent* PlayerUpgradeComp{};
+	enum class PilonState
+	{
+		Inactive,
+		Active,
+		Used
+	};
+	PilonState PilonState{PilonState::Inactive};
+
+	UPROPERTY()
+	TSubclassOf<UBaseUpgrade> UpgradeOption1;
+	UPROPERTY()
+	TSubclassOf<UBaseUpgrade> UpgradeOption2;
 	
 	virtual void BeginPlay() override;
+	void RefreshUpgradeOptions();
 		
 
 public:

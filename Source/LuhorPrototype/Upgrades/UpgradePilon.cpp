@@ -3,6 +3,7 @@
 
 #include "UpgradePilon.h"
 
+#include "UpgradePickerWidget.h"
 #include "Components/BoxComponent.h"
 #include "Components/ShapeComponent.h"
 #include "Components/WidgetComponent.h"
@@ -24,12 +25,12 @@ AUpgradePilon::AUpgradePilon()
 	WidgetComp->SetupAttachment(RootComponent);
 
 	// Option 1 (box)
-	Option1Shape = CreateDefaultSubobject<UBoxComponent>(TEXT("Option1Shape"));
-	Option1Shape->SetupAttachment(RootComponent);
+	LeftShape = CreateDefaultSubobject<UBoxComponent>(TEXT("Option1Shape"));
+	LeftShape->SetupAttachment(RootComponent);
 
 	// Option 2 (box)
-	Option2Shape = CreateDefaultSubobject<UBoxComponent>(TEXT("Option2Shape"));
-	Option2Shape->SetupAttachment(RootComponent);
+	RightShape = CreateDefaultSubobject<UBoxComponent>(TEXT("Option2Shape"));
+	RightShape->SetupAttachment(RootComponent);
 }
 
 bool AUpgradePilon::CanInteract_Implementation(AActor* Interactor) const
@@ -38,14 +39,82 @@ bool AUpgradePilon::CanInteract_Implementation(AActor* Interactor) const
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ALuhorEnemyCharacter::StaticClass(), FoundActors);
 	
 	UE_LOG(LogTemp, Log, TEXT("Checked"));
-	return FoundActors.Num() == 0 && Upgrades.Num() !=0;
+	return FoundActors.Num() == 0 && Upgrades.Num() !=0 && PilonState != PilonState::Used;
 }
 
 void AUpgradePilon::Interact_Implementation(AActor* Interactor)
 {
-	UE_LOG(LogTemp, Log, TEXT("Interacted"));
-	WidgetComp->SetVisibility(true);
+	if (!PlayerUpgradeComp)
+	{
+		TArray<AActor*> FoundActors;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), ALuhorCharacter::StaticClass(), FoundActors);
+		PlayerUpgradeComp = Cast<UUpgradesComponent>(Cast<ALuhorCharacter>(FoundActors[0])->GetComponentByClass(UUpgradesComponent::StaticClass()));
+	}
+	if (!PlayerUpgradeComp) return;
 	
+	UE_LOG(LogTemp, Log, TEXT("Interacted"));
+	switch (PilonState)
+	{
+	case PilonState::Inactive:
+		RefreshUpgradeOptions();
+		if (Upgrades.Num() >= 2)
+		{
+			int32 FirstIndex = FMath::RandRange(0, Upgrades.Num() - 1);
+			int32 SecondIndex;
+			do
+			{
+				SecondIndex = FMath::RandRange(0, Upgrades.Num() - 1);
+			}
+			while (SecondIndex == FirstIndex);
+
+			UpgradeOption1 = Upgrades[FirstIndex];
+			UpgradeOption2 = Upgrades[SecondIndex];
+		}
+		else if (Upgrades.Num() == 1)
+		{
+			UpgradeOption1 = Upgrades[0];
+			UpgradeOption2 = Upgrades[0];
+		}
+		if (UUpgradePickerWidget* Widget = Cast<UUpgradePickerWidget>(WidgetComp->GetUserWidgetObject()))
+		{
+			UBaseUpgrade* upgrade1 = UpgradeOption1->GetDefaultObject<UBaseUpgrade>();
+			UBaseUpgrade* upgrade2 = UpgradeOption2->GetDefaultObject<UBaseUpgrade>();
+			Widget->SetLeftText(FText::FromString(upgrade1->GetTitle()),FText::FromString(upgrade1->GetDescription()));
+			Widget->SetRightText(FText::FromString(upgrade2->GetTitle()),FText::FromString(upgrade2->GetDescription()));
+		}
+		WidgetComp->SetVisibility(true);
+		PilonState = PilonState::Active;
+		break;
+		case PilonState::Active:
+			if (LeftShape && RightShape)
+			{
+				TArray<AActor*> OverlappingActors;
+				LeftShape->GetOverlappingActors(OverlappingActors, ALuhorCharacter::StaticClass());
+				bool IsPlayerInLeft = OverlappingActors.Num() > 0;
+				RightShape->GetOverlappingActors(OverlappingActors, ALuhorCharacter::StaticClass());
+				bool IsPlayerInRight = OverlappingActors.Num() > 1;
+				if (IsPlayerInLeft && IsPlayerInRight)
+				{
+					GEngine->AddOnScreenDebugMessage(
+					-1,                   // key (-1 = always add a new line)
+					1.0f,                 // time in seconds
+					FColor::Green,        // text color
+					TEXT("player either not in one of the choice boxes or in both at once"));
+				}else
+				{
+					if (!IsPlayerInLeft && IsPlayerInRight)
+					{
+						PlayerUpgradeComp->AddUpgrade(UpgradeOption2);					
+					} else {
+						
+						PlayerUpgradeComp->AddUpgrade(UpgradeOption1);					
+					}
+					PilonState = PilonState::Used;
+					WidgetComp->SetVisibility(false);
+				}
+			}
+			break;
+	}
 }
 
 FText AUpgradePilon::GetInteractPrompt_Implementation(const AActor* Interactor) const
@@ -59,6 +128,39 @@ void AUpgradePilon::BeginPlay()
 {
 	Super::BeginPlay();
 	WidgetComp->SetVisibility(false);
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ALuhorCharacter::StaticClass(), FoundActors);
+	PlayerUpgradeComp = Cast<UUpgradesComponent>(Cast<ALuhorCharacter>(FoundActors[0])->GetComponentByClass(UUpgradesComponent::StaticClass()));
+}
+
+void AUpgradePilon::RefreshUpgradeOptions()
+{
+	if (!PlayerUpgradeComp) return;
+
+	// Build a set of classes the player already owns
+
+	TArray<UBaseUpgrade*> PlayerUpgrades{PlayerUpgradeComp->GetUpgrades()};
+	for (int j=Upgrades.Num()-1; j >= 0; j--)
+	{
+		if (!*Upgrades[j])
+		{
+			Upgrades.RemoveAt(j);
+			continue;
+		}// drop invalid entries
+		const UBaseUpgrade* CDO = Upgrades[j]->GetDefaultObject<UBaseUpgrade>();
+		for (int i = 0; i < PlayerUpgrades.Num(); i++)
+		{
+			if (CDO->GetTitle().Equals( PlayerUpgrades[i]->GetTitle()))
+			{
+				Upgrades.RemoveAt(j);
+				
+			} else
+			{
+				UE_LOG(LogTemp, Log, TEXT("%s, %s : %i"), *PlayerUpgrades[i]->GetTitle(), *CDO->GetTitle(),CDO->GetTitle().Equals( PlayerUpgrades[i]->GetTitle()));
+			}
+		}
+	}
+	UE_LOG(LogTemp, Log , TEXT("%i"), Upgrades.Num());
 }
 
 // Called every frame
@@ -66,4 +168,5 @@ void AUpgradePilon::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 }
+
 

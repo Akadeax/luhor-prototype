@@ -21,7 +21,7 @@ FStatModifier UUpgradesComponent::GetCurrentModifier()
 void UUpgradesComponent::AddUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass)
 {
 	if (!*upgradeClass) return;
-
+	
 	UBaseUpgrade* instance = NewObject<UBaseUpgrade>(this, upgradeClass);
 	instance->SetUpgradesComponent(this);
 	Upgrades.Add(instance);
