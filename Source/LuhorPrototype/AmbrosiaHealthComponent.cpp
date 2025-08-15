@@ -15,16 +15,19 @@ void UAmbrosiaHealthComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	CurrentHealth = StartingAmbrosia;
+	TargetHealth = StartingAmbrosia;
 	UpgradesComponent = Cast<UUpgradesComponent>(GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass()));
 	FDebugUtil::QuitCheckf(UpgradesComponent, TEXT("Couldn't find the UpgradesComponent"));
-
+	TargetPoisonedAmbrosia = CurrentPoisonedAmbrosia;
 	const ULevelGameInstanceSubsystem* sub{ GetWorld()->GetGameInstance()->GetSubsystem<ULevelGameInstanceSubsystem>() };
 	check(sub);
 
 	if (sub->PlayerSaveData.Health == -1) return;
 	
 	CurrentHealth = sub->PlayerSaveData.Health;
+	TargetHealth = CurrentHealth;
 	CurrentPoisonedAmbrosia = sub->PlayerSaveData.PoisonedAmbrosia;
+	TargetPoisonedAmbrosia = CurrentPoisonedAmbrosia;
 }
 
 void UAmbrosiaHealthComponent::TickComponent(float DeltaTime, ELevelTick TickType,
@@ -34,24 +37,32 @@ void UAmbrosiaHealthComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	
 	if (!InLastStand && DoDrain)
 	{
-		CurrentHealth -= DeltaTime * PassiveAmbrosiaDrain * UpgradesComponent->GetCurrentModifier().
+		TargetHealth -= DeltaTime * PassiveAmbrosiaDrain * UpgradesComponent->GetCurrentModifier().
 		                                                                       AmbrosiaDrainMultiplier;
-		
-		if (UUpgradesComponent* Upgrades = Cast<UUpgradesComponent>(
-			GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass())))
-		{
-			FStatModifier modifier{Upgrades->GetCurrentModifier()};
-			CurrentHealth -= DeltaTime * PassiveAmbrosiaDrain * modifier.AmbrosiaDrainMultiplier;
-		}
-
 		OnDamaged.Broadcast();
-		if (CurrentHealth <= 0)
+		if (CurrentHealth < 0)
 		{
 			CurrentHealth = 0;
 			InLastStand = true;
 			OnLastStandStarted.Broadcast();
 		}
 	}
+
+	CurrentHealth = FMath::FInterpTo(
+		CurrentHealth,
+		TargetHealth,
+		DeltaTime,
+		CurrentHealth >TargetHealth ? AmbrosiaFillSpeed*4 : AmbrosiaFillSpeed //drain much faster than you fill
+		);
+	CurrentPoisonedAmbrosia = FMath::FInterpTo(CurrentPoisonedAmbrosia, TargetPoisonedAmbrosia, DeltaTime, PoisonedAmbrosiaFillSpeed);
+	if (CurrentHealth < 0)
+	{
+		CurrentHealth = 0;
+		TargetHealth = 0;
+		InLastStand = true;
+		OnLastStandStarted.Broadcast();
+		UE_LOG(LogTemp,Log,TEXT("Last stand started"));
+	};
 }
 
 void UAmbrosiaHealthComponent::Damage(float Amount)
@@ -65,13 +76,8 @@ void UAmbrosiaHealthComponent::Damage(float Amount)
 	}
 	else
 	{
-		CurrentHealth -= Amount / UpgradesComponent->GetCurrentModifier().DefenseMultiplier;
-		if (CurrentHealth <= 0)
-		{
-			CurrentHealth = 0;
-			InLastStand = true;
-			OnLastStandStarted.Broadcast();
-		};
+		float damage = Amount / UpgradesComponent->GetCurrentModifier().DefenseMultiplier;
+		TargetHealth -= damage;
 	}
 }
 
@@ -83,29 +89,29 @@ void UAmbrosiaHealthComponent::SiphonAmbrosia(float Amount)
 	if (CurrentHealth / MaxHealth > SpecialChargeCutoff)
 	{
 		float HalfSiphon = SiphonAmount / 2;
-		float HealthRemainder = MaxHealth - CurrentHealth;
-		float PoisonedAmbrosiaRemainder = MaxPoisonedAmbrosia - CurrentPoisonedAmbrosia;
+		float HealthRemainder = MaxHealth - TargetHealth;
+		float PoisonedAmbrosiaRemainder = MaxPoisonedAmbrosia - TargetPoisonedAmbrosia;
 		if (HalfSiphon > HealthRemainder)
 		{
 			int Remainder = HalfSiphon - HealthRemainder;
-			CurrentHealth = MaxHealth;
-			CurrentPoisonedAmbrosia = FMath::Min(CurrentPoisonedAmbrosia + Remainder + HalfSiphon, MaxPoisonedAmbrosia);
+			TargetHealth = MaxHealth;
+			TargetPoisonedAmbrosia = FMath::Min(CurrentPoisonedAmbrosia + Remainder + HalfSiphon, MaxPoisonedAmbrosia);
 		}
 		else if (HalfSiphon > PoisonedAmbrosiaRemainder)
 		{
 			int Remainder = HalfSiphon - PoisonedAmbrosiaRemainder;
-			CurrentPoisonedAmbrosia = MaxPoisonedAmbrosia;
-			CurrentHealth = FMath::Min(CurrentHealth + Remainder + HalfSiphon, MaxHealth);
+			TargetPoisonedAmbrosia = MaxPoisonedAmbrosia;
+			TargetHealth = FMath::Min(TargetHealth + Remainder + HalfSiphon, MaxHealth);
 		}
 		else
 		{
-			CurrentHealth += HalfSiphon;
-			CurrentPoisonedAmbrosia += HalfSiphon;
+			TargetHealth += HalfSiphon;
+			TargetPoisonedAmbrosia += HalfSiphon;
 		}
 	}
 	else
 	{
-		CurrentHealth = FMath::Min(CurrentHealth + SiphonAmount, MaxHealth);
+		TargetHealth = FMath::Min(TargetHealth + SiphonAmount, MaxHealth);
 		if (InLastStand && CurrentHealth > LastStandEndCutoff)
 		{
 			InLastStand = false;
