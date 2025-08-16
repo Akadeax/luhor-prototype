@@ -18,6 +18,7 @@ void UAmbrosiaHealthComponent::BeginPlay()
 	TargetHealth = StartingAmbrosia;
 	UpgradesComponent = Cast<UUpgradesComponent>(GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass()));
 	FDebugUtil::QuitCheckf(UpgradesComponent, TEXT("Couldn't find the UpgradesComponent"));
+	MaxPoisonedAmbrosia = PoisonedAmbrosiaPerCharge * StartingCharges;
 	TargetPoisonedAmbrosia = CurrentPoisonedAmbrosia;
 	const ULevelGameInstanceSubsystem* sub{ GetWorld()->GetGameInstance()->GetSubsystem<ULevelGameInstanceSubsystem>() };
 	check(sub);
@@ -70,7 +71,7 @@ void UAmbrosiaHealthComponent::Damage(float Amount)
 	if (Amount < 0) return;
 	OnDamaged.Broadcast();
 	if (InLastStand)
-	{
+	{ 
 		OnDeath.Broadcast();
 		if (DestroyOnDeath) GetOwner()->Destroy();
 	}
@@ -125,6 +126,7 @@ bool UAmbrosiaHealthComponent::TrySpendSpecialCharge()
 	if (CurrentPoisonedAmbrosia >= PoisonedAmbrosiaPerCharge)
 	{
 		CurrentPoisonedAmbrosia -= PoisonedAmbrosiaPerCharge;
+		TargetPoisonedAmbrosia -= PoisonedAmbrosiaPerCharge;
 		return true;
 	}
 	return false;

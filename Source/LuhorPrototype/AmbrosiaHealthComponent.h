@@ -74,7 +74,8 @@ protected:
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Special Attack")
 	float PoisonedAmbrosiaFillSpeed{ 5.f };
-	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Special Attack")
+	int StartingCharges{ 1 };
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia|Special Attack", meta = (ToolTip = "The percentage of ambrosia the player needs to have before putting a part of its ambrosia gain towards filling the special attack meter"))
 	float SpecialChargeCutoff{ 0.66f };
 
