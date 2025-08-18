@@ -23,9 +23,9 @@ public:
 	void LoadRandomLevel();
 	
 	UPROPERTY(BlueprintReadOnly) FPlayerSaveData PlayerSaveData;
-	
-private:
+	UFUNCTION(BlueprintCallable)
 	void RefillRoomsLeft();
+private:
 	void SavePlayerData();
 	
 	UPROPERTY() TObjectPtr<URoomData> RoomData;

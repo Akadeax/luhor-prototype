@@ -34,6 +34,8 @@ public:
 
 	virtual void Damage(float Amount) override;
 
+	virtual void Heal(float Amount) override;
+	
 	UFUNCTION(BlueprintCallable)
 	void SiphonAmbrosia(float Amount);
 

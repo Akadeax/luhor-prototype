@@ -45,6 +45,12 @@ void UUpgradesComponent::RemoveUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass)
 	RecalculateModifier();
 }
 
+void UUpgradesComponent::Clear()
+{
+	Upgrades.Empty();
+}
+
+
 void UUpgradesComponent::BeginPlay()
 {
 	Super::BeginPlay();

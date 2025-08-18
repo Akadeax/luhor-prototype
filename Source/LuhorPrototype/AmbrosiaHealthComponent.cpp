@@ -82,6 +82,12 @@ void UAmbrosiaHealthComponent::Damage(float Amount)
 	}
 }
 
+void UAmbrosiaHealthComponent::Heal(float Amount)
+{
+	Super::Heal(Amount);
+	TargetHealth = CurrentHealth;
+}
+
 void UAmbrosiaHealthComponent::SiphonAmbrosia(float Amount)
 {
 	float SiphonAmount = Amount * (SiphonPercentage / 100) * UpgradesComponent->GetCurrentModifier().

@@ -52,7 +52,8 @@ public:
 	void AddUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass);
 	UFUNCTION(BlueprintCallable)
 	void RemoveUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass);
-
+	UFUNCTION(BlueprintCallable)
+	void Clear();
 	virtual void BeginPlay() override;
 	TArray<TSubclassOf<UBaseUpgrade>> GetUpgrades() const;
 protected:
