@@ -38,7 +38,6 @@ bool AUpgradePilon::CanInteract_Implementation(AActor* Interactor) const
 	TArray<AActor*> FoundActors;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ALuhorEnemyCharacter::StaticClass(), FoundActors);
 	
-	UE_LOG(LogTemp, Log, TEXT("Checked"));
 	return FoundActors.Num() == 0 && Upgrades.Num() !=0 && PilonState != PilonState::Used;
 }
 
@@ -115,6 +114,7 @@ void AUpgradePilon::Interact_Implementation(AActor* Interactor)
 			}
 			break;
 	}
+	InteractCalled();
 }
 
 FText AUpgradePilon::GetInteractPrompt_Implementation(const AActor* Interactor) const
