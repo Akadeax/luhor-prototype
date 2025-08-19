@@ -25,6 +25,9 @@ public:
 	virtual void Interact_Implementation(AActor* Interactor) override;
 	UFUNCTION(BlueprintCallable, Category="Interact")
 	virtual FText GetInteractPrompt_Implementation(const AActor* Interactor) const override;
+	UFUNCTION(BlueprintImplementableEvent, Category="Interact")
+	void InteractCalled();
+	
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Interact")
 	UWidgetComponent* WidgetComp{};
