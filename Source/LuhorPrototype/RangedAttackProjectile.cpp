@@ -61,7 +61,7 @@ void ARangedAttackProjectile::OnCollisionBeginOverlap(
 	
 	if (hittable->GetFaction() == ProjectileData.SourceFaction) return;
 	
-	const FHittableHitData data{ ProjectileData.RangedAttack->AttackData.Damage, ProjectileData.Source, ProjectileData.SourceFaction };
+	const FHittableHitData data{ ProjectileData.RangedAttack->AttackData.Damage, ProjectileData.Source,hittable->GetOwner()->GetActorLocation(), ProjectileData.SourceFaction };
 
 	hittable->Hit(data);
 	bool wasLethal {true};

@@ -24,7 +24,11 @@ struct FHittableHitData
 	AActor* Source{};
 
 	UPROPERTY(BlueprintReadWrite)
+	FVector TargetLocation{};
+
+	UPROPERTY(BlueprintReadWrite)
 	UFactionAssociation* SourceFaction{};
+	
 };
 
 UENUM(BlueprintType)
