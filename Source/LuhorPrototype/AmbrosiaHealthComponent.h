@@ -56,8 +56,10 @@ public:
 
 	UFUNCTION(BlueprintCallable) void StartDrain() { DoDrain = true; }
 	UFUNCTION(BlueprintCallable) void EndDrain()   { DoDrain = false; }
-
-	
+	UFUNCTION(BlueprintCallable)
+	bool IsDead() const {return HasDied;}
+	UFUNCTION(BlueprintCallable)
+	void ResetBools();
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Siphon")
 	float SiphonPercentage{ 5.f };
@@ -100,4 +102,5 @@ protected:
 	
 	bool DoDrain{ false };
 	bool InLastStand{ false };
+	bool HasDied{false};
 };

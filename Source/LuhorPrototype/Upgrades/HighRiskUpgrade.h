@@ -22,7 +22,7 @@ class LUHORPROTOTYPE_API UHighRiskUpgrade : public UBaseUpgrade
 		Modifier.SiphonSpeedMultiplier = 0.75;
 		
 		UpgradeName = "High Risk High Reward";
-		UpgradeText = "When you are below 50% ambrosia your damage Tripples, but your ambrosia drains 25% faster and you siphon 25% slower";
+		UpgradeText = "When you are below 50% ambrosia your damage Triples, but your ambrosia drains 25% faster and you siphon 25% slower";
 		IsUpgradeActive = false;
 	}
 	virtual void Init() override

@@ -2,8 +2,12 @@
 
 #include "MeleeAttackerComponent.h"
 
+#include "AmbrosiaHealthComponent.h"
+#include "HealthComponent.h"
 #include "HittableComponent.h"
+#include "LuhorCharacter.h"
 #include "LuhorMovementComponent.h"
+#include "LuhorPlayerCharacter.h"
 #include "Util/ComponentUtil.h"
 #include "Components/ShapeComponent.h"
 #include "Upgrades/UpgradesComponent.h"
@@ -212,7 +216,7 @@ void UMeleeAttackerComponent::DisableContactCollision()
 
 void UMeleeAttackerComponent::OnContactCollisionBeginOverlap(
 	UPrimitiveComponent*,
-	AActor*,
+	AActor* OtherActor,
 	UPrimitiveComponent* OtherComp,
 	int32,
 	bool,
@@ -234,7 +238,19 @@ void UMeleeAttackerComponent::OnContactCollisionBeginOverlap(
 	}
 
 	hittable->Hit(hitData);
-	OnMeleeAttackHit.Broadcast(hitData);
+	bool wasLethal {true};
+	if (UHealthComponent* HealthComp{ Cast<UHealthComponent>(OtherActor->GetComponentByClass(UHealthComponent::StaticClass()))})
+	{
+		wasLethal = HealthComp->GetCurrentHealth() <= 0;
+		if (wasLethal)
+		{
+			if (ALuhorPlayerCharacter* Character{Cast<ALuhorPlayerCharacter>(OtherActor)})
+			{
+				wasLethal = Cast<UAmbrosiaHealthComponent>(HealthComp)->IsDead();
+			}	
+		}
+	}
+	OnMeleeAttackHit.Broadcast(hitData,wasLethal);
 }
 
 

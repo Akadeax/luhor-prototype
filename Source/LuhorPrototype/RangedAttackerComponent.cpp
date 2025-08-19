@@ -128,7 +128,7 @@ void URangedAttackerComponent::SpawnProjectile()
 	proj->OnProjectileHit.AddDynamic(this, &ThisClass::OnProjectileHit);
 }
 
-void URangedAttackerComponent::OnProjectileHit(const FHittableHitData& Data)
+void URangedAttackerComponent::OnProjectileHit(const FHittableHitData& Data, bool WasLethal)
 {
-	OnRangedAttackHit.Broadcast(Data);
+	OnRangedAttackHit.Broadcast(Data,WasLethal);
 }

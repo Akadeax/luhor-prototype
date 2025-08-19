@@ -22,7 +22,7 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMeleeAttackCancelled);
 	UPROPERTY(BlueprintAssignable) FOnMeleeAttackCancelled OnMeleeAttackCancelled;
 
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMeleeAttackHit, FHittableHitData, Data);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMeleeAttackHit, FHittableHitData, Data, bool, WasLethal);
 	UPROPERTY(BlueprintAssignable) FOnMeleeAttackHit OnMeleeAttackHit;
 	
 	UFUNCTION(BlueprintCallable)

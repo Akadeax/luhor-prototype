@@ -40,7 +40,7 @@ void UAmbrosiaHealthComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	{
 		TargetHealth -= DeltaTime * PassiveAmbrosiaDrain * UpgradesComponent->GetCurrentModifier().
 		                                                                       AmbrosiaDrainMultiplier;
-		OnDamaged.Broadcast();
+		//OnDamaged.Broadcast();
 		if (CurrentHealth < 0)
 		{
 			CurrentHealth = 0;
@@ -73,6 +73,7 @@ void UAmbrosiaHealthComponent::Damage(float Amount)
 	if (InLastStand)
 	{ 
 		OnDeath.Broadcast();
+		HasDied = true;
 		if (DestroyOnDeath) GetOwner()->Destroy();
 	}
 	else
@@ -156,4 +157,11 @@ float UAmbrosiaHealthComponent::GetCurrentPoisonedAmbrosiaPercentage() const
 int UAmbrosiaHealthComponent::GetSpecialAttackCharges() const
 {
 	return FMath::TruncToInt(CurrentPoisonedAmbrosia / PoisonedAmbrosiaPerCharge);
+}
+
+void UAmbrosiaHealthComponent::ResetBools()
+{
+	HasDied = false;
+	InLastStand = false;
+	DoDrain = false;
 }

@@ -2,8 +2,10 @@
 
 #include "RangedAttackProjectile.h"
 
+#include "AmbrosiaHealthComponent.h"
 #include "AttackData.h"
 #include "HittableComponent.h"
+#include "LuhorPlayerCharacter.h"
 #include "Components/BoxComponent.h"
 
 ARangedAttackProjectile::ARangedAttackProjectile()
@@ -44,7 +46,7 @@ void ARangedAttackProjectile::Tick(float DeltaSeconds)
 
 void ARangedAttackProjectile::OnCollisionBeginOverlap(
 	UPrimitiveComponent*,
-	AActor*,
+	AActor* OtherActor,
 	UPrimitiveComponent* OtherComp,
 	int32,
 	bool,
@@ -62,7 +64,19 @@ void ARangedAttackProjectile::OnCollisionBeginOverlap(
 	const FHittableHitData data{ ProjectileData.RangedAttack->AttackData.Damage, ProjectileData.Source, ProjectileData.SourceFaction };
 
 	hittable->Hit(data);
-	OnProjectileHit.Broadcast(data);
+	bool wasLethal {true};
+	if (UHealthComponent* HealthComp{ Cast<UHealthComponent>(OtherActor->GetComponentByClass(UHealthComponent::StaticClass()))})
+	{
+		wasLethal = HealthComp->GetCurrentHealth() < 0;
+		if (wasLethal)
+		{
+			if (ALuhorPlayerCharacter* Character{Cast<ALuhorPlayerCharacter>(OtherActor)})
+			{
+				wasLethal = Cast<UAmbrosiaHealthComponent>(HealthComp)->IsDead();
+			}	
+		}
+	}
+	OnProjectileHit.Broadcast(data,wasLethal);
 
 	Destroy();
 }

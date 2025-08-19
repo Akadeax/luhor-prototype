@@ -19,7 +19,7 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRangedAttackCancelled);
 	UPROPERTY(BlueprintAssignable) FOnRangedAttackCancelled OnRangedAttackCancelled;
 
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRangedAttackHit, FHittableHitData, Data);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnRangedAttackHit, FHittableHitData, Data, bool, WasLethal);
 	UPROPERTY(BlueprintAssignable) FOnRangedAttackHit OnRangedAttackHit;
 
 	
@@ -49,5 +49,5 @@ protected:
 	void SpawnProjectile();
 
 	UFUNCTION()
-	void OnProjectileHit(const FHittableHitData& Data);
+	void OnProjectileHit(const FHittableHitData& Data, bool WasLethal);
 };

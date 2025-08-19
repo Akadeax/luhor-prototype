@@ -36,7 +36,7 @@ class LUHORPROTOTYPE_API ARangedAttackProjectile : public AActor
 public:
 	ARangedAttackProjectile();
 
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnProjectileHit, const FHittableHitData&, Data);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnProjectileHit, const FHittableHitData&, Data, bool, WasLethal);
  	UPROPERTY(BlueprintAssignable) FOnProjectileHit OnProjectileHit;
 	
 	void InitializeProjectile(const FProjectileData& Data);

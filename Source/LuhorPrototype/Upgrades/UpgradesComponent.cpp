@@ -45,7 +45,7 @@ void UUpgradesComponent::RemoveUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass)
 	RecalculateModifier();
 }
 
-void UUpgradesComponent::Clear()
+void UUpgradesComponent::ClearUpgrades()
 {
 	Upgrades.Empty();
 }
