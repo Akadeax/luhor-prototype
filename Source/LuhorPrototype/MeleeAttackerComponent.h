@@ -24,9 +24,6 @@ public:
 
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMeleeAttackHit, FHittableHitData, Data);
 	UPROPERTY(BlueprintAssignable) FOnMeleeAttackHit OnMeleeAttackHit;
-
-	UFUNCTION(BlueprintCallable)
-	bool CanAttack() const;
 	
 	UFUNCTION(BlueprintCallable)
 	bool TryAttack();

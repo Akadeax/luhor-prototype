@@ -15,6 +15,7 @@ COMPDEP_IMPL_START(UMeleeAttackerComponent)
 	COMPDEP_DEP_ChildRequired(UShapeComponent)
 COMPDEP_IMPL_END
 
+
 void UMeleeAttackerComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -22,11 +23,15 @@ void UMeleeAttackerComponent::BeginPlay()
 	FDebugUtil::QuitCheckf(MeleeAttackChain, TEXT("No attack chain assigned to %s on %s!"), *GetName(), *GetOwner()->GetName());
 	for (const FMeleeAttackData& data : MeleeAttackChain->Attacks)
 	{
-		FDebugUtil::QuitCheckf(data.Montage, TEXT("Melee Attack Chain %s doesn't have a montage assigned on all attacks!"), *MeleeAttackChain.GetName());
+		FDebugUtil::QuitCheckf(
+			data.Montage, TEXT("Melee Attack Chain %s doesn't have a montage assigned on all attacks!"), *MeleeAttackChain.GetName()
+		);
 	}
-	
+
 	MainSkeletalMesh = GetOwner()->FindComponentByTag<USkeletalMeshComponent>(MainSkeletalMeshComponentTag);
-	FDebugUtil::QuitCheckf(MainSkeletalMesh, TEXT("Actor %s has no skeletal mesh with tag %s!"), *GetOwner()->GetName(), *MainSkeletalMeshComponentTag.ToString());
+	FDebugUtil::QuitCheckf(
+		MainSkeletalMesh, TEXT("Actor %s has no skeletal mesh with tag %s!"), *GetOwner()->GetName(), *MainSkeletalMeshComponentTag.ToString()
+	);
 
 	ContactCollision = FComponentUtil::GetChildComponentOfClass<UShapeComponent>(this);
 	FDebugUtil::QuitCheckf(ContactCollision, TEXT("Component %s on actor %s has no shape component as a child!"), *GetName(), *GetOwner()->GetName());
@@ -45,10 +50,6 @@ void UMeleeAttackerComponent::BeginPlay()
 	MovementComponent = FComponentUtil::GetFirstComponentOfClass<ULuhorMovementComponent>(GetOwner());
 }
 
-bool UMeleeAttackerComponent::CanAttack() const
-{
-	return CurrentAttackState == EAttackState::None;
-}
 
 bool UMeleeAttackerComponent::TryAttack()
 {
@@ -58,10 +59,10 @@ bool UMeleeAttackerComponent::TryAttack()
 		{
 			AttackQueued = true;
 		}
-		
+
 		return false;
 	}
-	
+
 	if (GetWorld()->GetTimerManager().IsTimerActive(ChainLeniencyTimer))
 	{
 		GetWorld()->GetTimerManager().ClearTimer(ChainLeniencyTimer);
@@ -73,10 +74,11 @@ bool UMeleeAttackerComponent::TryAttack()
 	return true;
 }
 
+
 void UMeleeAttackerComponent::CancelAttack()
 {
 	if (CurrentAttackState == EAttackState::None) return;
-	
+
 	for (FMeleeAttackData& data : MeleeAttackChain->Attacks)
 	{
 		MainSkeletalMesh->GetAnimInstance()->Montage_Stop(0.1f, data.Montage);
@@ -87,20 +89,19 @@ void UMeleeAttackerComponent::CancelAttack()
 	SetAttackState(EAttackState::None);
 
 	DisableContactCollision();
-	
+
 	GetWorld()->GetTimerManager().ClearTimer(CurrentAttackStateTimer);
 	GetWorld()->GetTimerManager().ClearTimer(ChainLeniencyTimer);
-	
+
 	OnMeleeAttackCancelled.Broadcast();
 }
-
 
 
 void UMeleeAttackerComponent::DoWindup()
 {
 	SetAttackState(EAttackState::Windup);
 	const FMeleeAttackData& data{ GetCurrentAttack() };
-	
+
 	OnAttackStarted.Broadcast();
 
 	const float playRate{ GetSectionPlayRate(data.Montage, "windup", data.WindupTime) };
@@ -111,17 +112,18 @@ void UMeleeAttackerComponent::DoWindup()
 	}
 
 	MainSkeletalMesh->GetAnimInstance()->Montage_SetPlayRate(data.Montage, playRate);
-	
+
 	GetWorld()->GetTimerManager().SetTimer(
 		CurrentAttackStateTimer, this, &ThisClass::DoContact, data.WindupTime
 	);
 }
 
+
 void UMeleeAttackerComponent::DoContact()
 {
 	SetAttackState(EAttackState::Contact);
 	const FMeleeAttackData& data{ GetCurrentAttack() };
-	
+
 	EnableContactCollision(data);
 
 	if (MovementComponent)
@@ -133,11 +135,12 @@ void UMeleeAttackerComponent::DoContact()
 
 	const float playRate{ GetSectionPlayRate(data.Montage, "contact", data.ContactTime) };
 	MainSkeletalMesh->GetAnimInstance()->Montage_SetPlayRate(data.Montage, playRate);
-	
+
 	GetWorld()->GetTimerManager().SetTimer(
 		CurrentAttackStateTimer, this, &ThisClass::DoRecovery, data.ContactTime
 	);
 }
+
 
 void UMeleeAttackerComponent::DoRecovery()
 {
@@ -148,11 +151,12 @@ void UMeleeAttackerComponent::DoRecovery()
 
 	const float playRate{ GetSectionPlayRate(data.Montage, "recovery", data.RecoveryTime) };
 	MainSkeletalMesh->GetAnimInstance()->Montage_SetPlayRate(data.Montage, playRate);
-	
+
 	GetWorld()->GetTimerManager().SetTimer(
 		CurrentAttackStateTimer, this, &ThisClass::EndAttack, data.RecoveryTime
 	);
 }
+
 
 void UMeleeAttackerComponent::EndAttack()
 {
@@ -162,7 +166,7 @@ void UMeleeAttackerComponent::EndAttack()
 	{
 		AttackQueued = false;
 		EndChainLeniency();
-		
+
 		OnAttackDone.Broadcast();
 		OnMeleeAttackChainDone.Broadcast();
 	}
@@ -174,14 +178,16 @@ void UMeleeAttackerComponent::EndAttack()
 
 		OnAttackDone.Broadcast();
 	}
-	
+
 	if (AttackQueued) TryAttack();
 }
+
 
 void UMeleeAttackerComponent::EndChainLeniency()
 {
 	CurrentChainIndex = 0;
 }
+
 
 void UMeleeAttackerComponent::EnableContactCollision(const FMeleeAttackData& data)
 {
@@ -193,14 +199,16 @@ void UMeleeAttackerComponent::EnableContactCollision(const FMeleeAttackData& dat
 	{
 		ContactCollision->SetRelativeTransform(data.HitBoxTransform);
 	}
-	
+
 	ContactCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 }
+
 
 void UMeleeAttackerComponent::DisableContactCollision()
 {
 	ContactCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
+
 
 void UMeleeAttackerComponent::OnContactCollisionBeginOverlap(
 	UPrimitiveComponent*,
@@ -208,7 +216,8 @@ void UMeleeAttackerComponent::OnContactCollisionBeginOverlap(
 	UPrimitiveComponent* OtherComp,
 	int32,
 	bool,
-	const FHitResult&)
+	const FHitResult&
+)
 {
 	UHittableComponent* hittable{ Cast<UHittableComponent>(OtherComp->GetAttachParent()) };
 	if (!hittable) return;
@@ -217,20 +226,19 @@ void UMeleeAttackerComponent::OnContactCollisionBeginOverlap(
 	const FMeleeAttackData& data{ GetCurrentAttack() };
 
 	FHittableHitData hitData{ data.Damage, GetOwner(), Faction };
-	
+
 	if (UUpgradesComponent* Upgrades{ Cast<UUpgradesComponent>(GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass())) })
 	{
 		const FStatModifier modifiers{ Upgrades->GetCurrentModifier() };
 		hitData.Damage = (data.Damage + modifiers.MeleeAttackModifier) * modifiers.MeleeAttackMultiplier;
 	}
-	
+
 	hittable->Hit(hitData);
 	OnMeleeAttackHit.Broadcast(hitData);
 }
+
 
 const FMeleeAttackData& UMeleeAttackerComponent::GetCurrentAttack() const
 {
 	return MeleeAttackChain->Attacks[CurrentChainIndex];
 }
-
-

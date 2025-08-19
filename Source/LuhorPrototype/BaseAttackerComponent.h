@@ -28,7 +28,9 @@ public:
 
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAttackStateChanged, EAttackState, NewState);
 	UPROPERTY(BlueprintAssignable) FOnAttackStateChanged OnAttackStateChanged;
-
+	
+	UFUNCTION(BlueprintCallable)
+	bool CanAttack() const;
 	
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
