@@ -47,7 +47,12 @@ void UUpgradesComponent::RemoveUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass)
 
 void UUpgradesComponent::ClearUpgrades()
 {
+	for (TObjectPtr<UBaseUpgrade> Upgrade : Upgrades)
+	{
+		Upgrade->DeInit();
+	}
 	Upgrades.Empty();
+	
 }
 
 

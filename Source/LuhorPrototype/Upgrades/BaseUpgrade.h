@@ -20,6 +20,7 @@ public:
 	UBaseUpgrade() = default;
 	virtual ~UBaseUpgrade() override = default;
 	virtual void Init (){}
+	virtual void DeInit(){}
 
 	UFUNCTION(BlueprintCallable)
 	void SetStatModifier(const FStatModifier& Mod) { Modifier = Mod; }
@@ -30,16 +31,7 @@ public:
 	FString GetTitle() const { return UpgradeName; }
 	FString GetDescription() const { return UpgradeText; }
 	UFUNCTION(BlueprintCallable)
-	void SetUpgradesComponent(UUpgradesComponent* Component)
-	{
-		UpgradesComponent = Component;
-		AActor* Actor = UpgradesComponent->GetOwner();
-		if (Actor != nullptr)
-		{
-			PlayerCharacter = Cast<ALuhorPlayerCharacter>(Actor);
-			Init();
-		}
-	}
+	void SetUpgradesComponent(UUpgradesComponent* Component);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool IsUpgradeActive{ true };

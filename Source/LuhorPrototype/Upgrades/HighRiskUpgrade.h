@@ -15,37 +15,15 @@ class LUHORPROTOTYPE_API UHighRiskUpgrade : public UBaseUpgrade
 {
 	GENERATED_BODY()
 	
-	UHighRiskUpgrade()
-	{
-		Modifier.MeleeAttackMultiplier = 2;
-		Modifier.AmbrosiaDrainMultiplier = 1.25;
-		Modifier.SiphonSpeedMultiplier = 0.75;
-		
-		UpgradeName = "High Risk High Reward";
-		UpgradeText = "When you are below 50% ambrosia your damage Triples, but your ambrosia drains 25% faster and you siphon 25% slower";
-		IsUpgradeActive = false;
-	}
-	virtual void Init() override
-	{
-		PlayerHealthComp = Cast<UAmbrosiaHealthComponent>(PlayerCharacter->GetComponentByClass(UAmbrosiaHealthComponent::StaticClass()));
-		PlayerHealthComp->OnHealed.AddDynamic(this, &UHighRiskUpgrade::OnHealthChanged);
-		PlayerHealthComp->OnDamaged.AddDynamic(this, &UHighRiskUpgrade::OnHealthChanged);
-	}
+	UHighRiskUpgrade();
+
+	virtual void Init() override;
+	virtual void DeInit() override;
 	UPROPERTY()
 	UAmbrosiaHealthComponent* PlayerHealthComp{nullptr};
 	UPROPERTY(EditDefaultsOnly)
 	float HealthActivationCutoff{0.5f};
 	UFUNCTION()
-	void OnHealthChanged()
-	{
-		float healthPercentage = PlayerHealthComp->GetCurrentHealth() / PlayerHealthComp->GetMaxHealth();
-
-		bool shouldBeActive = healthPercentage < HealthActivationCutoff;
-		if (IsUpgradeActive != shouldBeActive)
-		{
-			IsUpgradeActive = shouldBeActive;
-			UpgradesComponent->RecalculateModifier();
-		}
-	}
+	void OnHealthChanged();
 };
 

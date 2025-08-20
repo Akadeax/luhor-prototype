@@ -40,7 +40,6 @@ void UAmbrosiaHealthComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	{
 		TargetHealth -= DeltaTime * PassiveAmbrosiaDrain * UpgradesComponent->GetCurrentModifier().
 		                                                                       AmbrosiaDrainMultiplier;
-		//OnDamaged.Broadcast();
 		if (CurrentHealth < 0)
 		{
 			CurrentHealth = 0;
