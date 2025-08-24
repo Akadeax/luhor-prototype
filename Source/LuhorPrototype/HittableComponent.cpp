@@ -78,7 +78,6 @@ void UHittableComponent::Hit(const FHittableHitData& HitData)
 	if (HitData.SourceFaction == Faction) return;
 	if (IsInvulnerable()) return;
 	
-	OnHit.Broadcast(HitData);
 	
 	MakeInvulnerable(InvulnerabilityOnHitTime);
 	HitStun();
@@ -94,7 +93,17 @@ void UHittableComponent::Hit(const FHittableHitData& HitData)
 		
 		MovementComponent->DoCurvedLaunch(dir, LaunchOnHitData);
 	}
+	
+	OnHit.Broadcast(HitData);
 }
+
+
+void UHittableComponent::CustomHitStun(float Time)
+{
+	CurrentHitStunTimeLeft = Time;
+	OnHitStun.Broadcast();
+}
+
 
 void UHittableComponent::MakeInvulnerable(float Time, MakeInvulnerableMode Mode)
 {

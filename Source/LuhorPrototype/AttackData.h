@@ -34,7 +34,7 @@ struct LUHORPROTOTYPE_API FMeleeAttackData
 };
 
 
-UCLASS()
+UCLASS(BlueprintType)
 class LUHORPROTOTYPE_API UMeleeAttackChain : public UDataAsset
 {
 	GENERATED_BODY()
@@ -79,7 +79,7 @@ struct LUHORPROTOTYPE_API FRangedAttackData
 };
 
 
-UCLASS()
+UCLASS(BlueprintType)
 class LUHORPROTOTYPE_API URangedAttack : public UDataAsset
 {
 	GENERATED_BODY()

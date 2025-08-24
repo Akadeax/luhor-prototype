@@ -56,8 +56,10 @@ public:
 
 	UFUNCTION(BlueprintCallable) void StartDrain() { DoDrain = true; }
 	UFUNCTION(BlueprintCallable) void EndDrain()   { DoDrain = false; }
+	
 	UFUNCTION(BlueprintCallable)
-	bool IsDead() const {return HasDied;}
+	bool IsDead() const { return HasDied; }
+	
 	UFUNCTION(BlueprintCallable)
 	void ResetBools();
 protected:
@@ -102,5 +104,5 @@ protected:
 	
 	bool DoDrain{ false };
 	bool InLastStand{ false };
-	bool HasDied{false};
+	bool HasDied{ false };
 };

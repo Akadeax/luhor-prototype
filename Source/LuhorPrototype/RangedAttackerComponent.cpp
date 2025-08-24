@@ -32,6 +32,13 @@ void URangedAttackerComponent::CancelAttack()
 	OnRangedAttackCancelled.Broadcast();
 }
 
+
+void URangedAttackerComponent::SetRangedAttack(URangedAttack* NewAttack)
+{
+	RangedAttack = NewAttack;
+}
+
+
 void URangedAttackerComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -128,7 +135,7 @@ void URangedAttackerComponent::SpawnProjectile()
 	proj->OnProjectileHit.AddDynamic(this, &ThisClass::OnProjectileHit);
 }
 
-void URangedAttackerComponent::OnProjectileHit(const FHittableHitData& Data, bool WasLethal)
+void URangedAttackerComponent::OnProjectileHit(const FHittableHitData& Data, bool WasLethal, UHittableComponent* Hittable)
 {
 	OnRangedAttackHit.Broadcast(Data,WasLethal);
 }

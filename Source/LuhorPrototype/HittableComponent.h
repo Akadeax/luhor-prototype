@@ -66,7 +66,10 @@ public:
 
 	
 	void Hit(const FHittableHitData& HitData);
-
+	
+	UFUNCTION(BlueprintCallable)
+	void CustomHitStun(float Time);
+	
 	UFUNCTION(BlueprintCallable)
 	void MakeInvulnerable(float Time, MakeInvulnerableMode Mode = MakeInvulnerableMode::SetTimeIfLonger);
 	

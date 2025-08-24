@@ -49,9 +49,9 @@ public:
 	FStatModifier GetCurrentModifier();
 
 	UFUNCTION(BlueprintCallable)
-	void AddUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass);
+	void AddUpgrade(TSubclassOf<UBaseUpgrade> UpgradeClass);
 	UFUNCTION(BlueprintCallable)
-	void RemoveUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass);
+	void RemoveUpgrade(TSubclassOf<UBaseUpgrade> UpgradeClass);
 	UFUNCTION(BlueprintCallable)
 	void ClearUpgrades();
 	virtual void BeginPlay() override;

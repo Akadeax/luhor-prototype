@@ -61,22 +61,24 @@ void ARangedAttackProjectile::OnCollisionBeginOverlap(
 	
 	if (hittable->GetFaction() == ProjectileData.SourceFaction) return;
 	
-	const FHittableHitData data{ ProjectileData.RangedAttack->AttackData.Damage, ProjectileData.Source,hittable->GetOwner()->GetActorLocation(), ProjectileData.SourceFaction };
+	const FHittableHitData data{
+		ProjectileData.RangedAttack->AttackData.Damage,
+		ProjectileData.Source,
+		hittable->GetOwner()->GetActorLocation(),
+		ProjectileData.SourceFaction
+	};
 
 	hittable->Hit(data);
-	bool wasLethal {true};
-	if (UHealthComponent* HealthComp{ Cast<UHealthComponent>(OtherActor->GetComponentByClass(UHealthComponent::StaticClass()))})
+	bool wasLethal{ true };
+	if (UHealthComponent* healthComp{ Cast<UHealthComponent>(OtherActor->GetComponentByClass(UHealthComponent::StaticClass()))})
 	{
-		wasLethal = HealthComp->GetCurrentHealth() < 0;
-		if (wasLethal)
+		wasLethal = healthComp->GetCurrentHealth() < 0;
+		if (wasLethal && Cast<ALuhorPlayerCharacter>(OtherActor))
 		{
-			if (ALuhorPlayerCharacter* Character{Cast<ALuhorPlayerCharacter>(OtherActor)})
-			{
-				wasLethal = Cast<UAmbrosiaHealthComponent>(HealthComp)->IsDead();
-			}	
+			wasLethal = Cast<UAmbrosiaHealthComponent>(healthComp)->IsDead();
 		}
 	}
-	OnProjectileHit.Broadcast(data,wasLethal);
-
+	
+	OnProjectileHit.Broadcast(data, wasLethal, hittable);
 	Destroy();
 }

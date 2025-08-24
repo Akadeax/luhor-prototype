@@ -36,7 +36,7 @@ class LUHORPROTOTYPE_API ARangedAttackProjectile : public AActor
 public:
 	ARangedAttackProjectile();
 
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnProjectileHit, const FHittableHitData&, Data, bool, WasLethal);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnProjectileHit, const FHittableHitData&, Data, bool, WasLethal, UHittableComponent*, Target);
  	UPROPERTY(BlueprintAssignable) FOnProjectileHit OnProjectileHit;
 	
 	void InitializeProjectile(const FProjectileData& Data);
@@ -44,7 +44,6 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	
 protected:
-	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	UBoxComponent* Collision;
 

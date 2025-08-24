@@ -28,6 +28,9 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void CancelAttack();
+
+	UFUNCTION(BlueprintCallable)
+	void SetRangedAttack(URangedAttack* NewAttack);
 	
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
@@ -49,5 +52,5 @@ protected:
 	void SpawnProjectile();
 
 	UFUNCTION()
-	void OnProjectileHit(const FHittableHitData& Data, bool WasLethal);
+	void OnProjectileHit(const FHittableHitData& Data, bool WasLethal, UHittableComponent* Hittable);
 };

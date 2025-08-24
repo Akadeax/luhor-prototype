@@ -19,24 +19,24 @@ FStatModifier UUpgradesComponent::GetCurrentModifier()
 	return CurrentStats;
 }
 
-void UUpgradesComponent::AddUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass)
+void UUpgradesComponent::AddUpgrade(TSubclassOf<UBaseUpgrade> UpgradeClass)
 {
-	if (!*upgradeClass) return;
+	if (!*UpgradeClass) return;
 	
-	UBaseUpgrade* instance = NewObject<UBaseUpgrade>(this, upgradeClass);
+	UBaseUpgrade* instance = NewObject<UBaseUpgrade>(this, UpgradeClass);
 	instance->SetUpgradesComponent(this);
 	UE_LOG(LogTemp, Display, TEXT("Adding Upgrade: %s"),*instance->GetTitle());
 	Upgrades.Add(instance);
 	RecalculateModifier();
 }
 
-void UUpgradesComponent::RemoveUpgrade(TSubclassOf<UBaseUpgrade> upgradeClass)
+void UUpgradesComponent::RemoveUpgrade(TSubclassOf<UBaseUpgrade> UpgradeClass)
 {
-	if (!*upgradeClass) return;
+	if (!*UpgradeClass) return;
 
 	for (int32 i = Upgrades.Num() - 1; i >= 0; --i)
 	{
-		if (Upgrades[i] && Upgrades[i]->IsA(upgradeClass))
+		if (Upgrades[i] && Upgrades[i]->IsA(UpgradeClass))
 		{
 			Upgrades.RemoveAt(i);
 		}
