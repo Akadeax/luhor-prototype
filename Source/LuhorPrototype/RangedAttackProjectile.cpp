@@ -50,11 +50,14 @@ void ARangedAttackProjectile::OnCollisionBeginOverlap(
 	UPrimitiveComponent* OtherComp,
 	int32,
 	bool,
-	const FHitResult&)
+	const FHitResult& SweepResult)
 {
 	UHittableComponent* hittable{ Cast<UHittableComponent>(OtherComp->GetAttachParent()) };
 	if (!hittable)
 	{
+		// If it doesn't have a hittable component but we still collide, it's probably terrain
+		OnProjectileHitTerrain.Broadcast(OtherActor, SweepResult.ImpactPoint);
+		
 		Destroy();
 		return;
 	}

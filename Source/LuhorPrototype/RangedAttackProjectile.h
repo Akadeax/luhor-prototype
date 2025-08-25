@@ -38,6 +38,9 @@ public:
 
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnProjectileHit, const FHittableHitData&, Data, bool, WasLethal, UHittableComponent*, Target);
  	UPROPERTY(BlueprintAssignable) FOnProjectileHit OnProjectileHit;
+
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnProjectileHitTerrain, AActor*, Actor, FVector, ImpactPoint);
+	UPROPERTY(BlueprintAssignable) FOnProjectileHitTerrain OnProjectileHitTerrain;
 	
 	void InitializeProjectile(const FProjectileData& Data);
 
@@ -47,6 +50,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	UBoxComponent* Collision;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	FProjectileData ProjectileData;
 
 	UFUNCTION()
@@ -55,7 +59,7 @@ protected:
 		AActor* OtherActor,
 		UPrimitiveComponent* OtherComp,
 		int32 OtherBodyIndex,
-		bool bFromSweep,
+		bool FromSweep,
 		const FHitResult& SweepResult
 	);
 };
