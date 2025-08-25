@@ -100,6 +100,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia" , meta = (ToolTip = "How much ambrosia the player needs to gather to get out of the last stand mode"))
 	float LastStandEndCutoff{ 5.f };
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia|Special Attack")
+	float PoisonSiphonPercent{0.2f};
+	
 	UPROPERTY() UUpgradesComponent* UpgradesComponent{};
 	
 	bool DoDrain{ false };

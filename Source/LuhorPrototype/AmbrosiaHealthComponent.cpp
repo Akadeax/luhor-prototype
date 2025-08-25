@@ -78,7 +78,7 @@ void UAmbrosiaHealthComponent::Damage(float Amount)
 	else
 	{
 		float damage = Amount / UpgradesComponent->GetCurrentModifier().DefenseMultiplier;
-		TargetHealth -= damage;
+		TargetHealth = FMath::Max(TargetHealth-damage,0);
 	}
 }
 
@@ -92,38 +92,15 @@ void UAmbrosiaHealthComponent::SiphonAmbrosia(float Amount)
 {
 	float SiphonAmount = Amount * (SiphonPercentage / 100) * UpgradesComponent->GetCurrentModifier().
 		SiphonSpeedMultiplier;
-
-	if (CurrentHealth / MaxHealth > SpecialChargeCutoff)
+	
+	TargetHealth = FMath::Min(TargetHealth + SiphonAmount, MaxHealth);
+	TargetPoisonedAmbrosia = FMath::Min(TargetPoisonedAmbrosia + PoisonedAmbrosiaPerCharge * PoisonSiphonPercent *UpgradesComponent->GetCurrentModifier().
+		SiphonSpeedMultiplier,MaxPoisonedAmbrosia);
+	UE_LOG(LogTemp,Log,TEXT("Siphon Ambrosia"));
+	if (InLastStand && CurrentHealth > LastStandEndCutoff)
 	{
-		float HalfSiphon = SiphonAmount / 2;
-		float HealthRemainder = MaxHealth - TargetHealth;
-		float PoisonedAmbrosiaRemainder = MaxPoisonedAmbrosia - TargetPoisonedAmbrosia;
-		if (HalfSiphon > HealthRemainder)
-		{
-			int Remainder = HalfSiphon - HealthRemainder;
-			TargetHealth = MaxHealth;
-			TargetPoisonedAmbrosia = FMath::Min(CurrentPoisonedAmbrosia + Remainder + HalfSiphon, MaxPoisonedAmbrosia);
-		}
-		else if (HalfSiphon > PoisonedAmbrosiaRemainder)
-		{
-			int Remainder = HalfSiphon - PoisonedAmbrosiaRemainder;
-			TargetPoisonedAmbrosia = MaxPoisonedAmbrosia;
-			TargetHealth = FMath::Min(TargetHealth + Remainder + HalfSiphon, MaxHealth);
-		}
-		else
-		{
-			TargetHealth += HalfSiphon;
-			TargetPoisonedAmbrosia += HalfSiphon;
-		}
-	}
-	else
-	{
-		TargetHealth = FMath::Min(TargetHealth + SiphonAmount, MaxHealth);
-		if (InLastStand && CurrentHealth > LastStandEndCutoff)
-		{
-			InLastStand = false;
-			OnLastStandEnded.Broadcast();
-		}
+		InLastStand = false;
+		OnLastStandEnded.Broadcast();
 	}
 }
 
