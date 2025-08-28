@@ -33,6 +33,9 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void CancelAttack();
+
+	UFUNCTION(BlueprintCallable)
+	void SetAttackChain(UMeleeAttackChain* AttackChain){MeleeAttackChain = AttackChain;}
 	
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)

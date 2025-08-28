@@ -127,3 +127,9 @@ void UHittableComponent::MakeInvulnerable(float Time, MakeInvulnerableMode Mode)
 		OnInvulnerable.Broadcast();
 	}
 }
+
+void UHittableComponent::MakeVulnerable()
+{
+	CurrentInvulnerabilityTimeLeft = 0.f;
+	OnInvulnerableEnd.Broadcast();
+}

@@ -21,6 +21,7 @@ public:
 	virtual ~UBaseUpgrade() override = default;
 	virtual void Init (){}
 	virtual void DeInit(){}
+	virtual void Tick(float DeltaTime){};
 
 	UFUNCTION(BlueprintCallable)
 	void SetStatModifier(const FStatModifier& Mod) { Modifier = Mod; }

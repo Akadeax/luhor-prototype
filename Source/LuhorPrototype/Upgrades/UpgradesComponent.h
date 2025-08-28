@@ -46,8 +46,11 @@ class LUHORPROTOTYPE_API UUpgradesComponent : public UActorComponent
 public:	
 	UUpgradesComponent();
 	void RecalculateModifier();
+	UFUNCTION(BlueprintCallable)
 	FStatModifier GetCurrentModifier();
-
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUpgradeAdded);
+	UPROPERTY(BlueprintAssignable) FOnUpgradeAdded OnUpgradeAdded;
+	
 	UFUNCTION(BlueprintCallable)
 	void AddUpgrade(TSubclassOf<UBaseUpgrade> UpgradeClass);
 	UFUNCTION(BlueprintCallable)
@@ -55,7 +58,10 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void ClearUpgrades();
 	virtual void BeginPlay() override;
+	UFUNCTION(BlueprintCallable)
 	TArray<TSubclassOf<UBaseUpgrade>> GetUpgrades() const;
+
+	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 protected:
 	FStatModifier CurrentStats{};
 	UPROPERTY()
