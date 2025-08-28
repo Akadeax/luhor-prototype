@@ -62,6 +62,7 @@ public:
 	
 	UFUNCTION(BlueprintCallable)
 	void ResetBools();
+
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Siphon")
 	float SiphonPercentage{ 5.f };

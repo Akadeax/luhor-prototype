@@ -90,10 +90,9 @@ void UAmbrosiaHealthComponent::Heal(float Amount)
 
 void UAmbrosiaHealthComponent::SiphonAmbrosia(float Amount)
 {
-	float SiphonAmount = Amount * (SiphonPercentage / 100) * UpgradesComponent->GetCurrentModifier().
-		SiphonSpeedMultiplier;
+	const float siphonAmount{ Amount * (SiphonPercentage / 100) * UpgradesComponent->GetCurrentModifier().SiphonSpeedMultiplier };
 	
-	TargetHealth = FMath::Min(TargetHealth + SiphonAmount, MaxHealth);
+	TargetHealth = FMath::Min(TargetHealth + siphonAmount, MaxHealth);
 	TargetPoisonedAmbrosia = FMath::Min(TargetPoisonedAmbrosia + PoisonedAmbrosiaPerCharge * PoisonSiphonPercent *UpgradesComponent->GetCurrentModifier().
 		SiphonSpeedMultiplier,MaxPoisonedAmbrosia);
 	UE_LOG(LogTemp,Log,TEXT("Siphon Ambrosia"));
