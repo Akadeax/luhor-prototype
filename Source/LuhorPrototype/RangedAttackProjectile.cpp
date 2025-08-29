@@ -68,7 +68,8 @@ void ARangedAttackProjectile::OnCollisionBeginOverlap(
 		ProjectileData.RangedAttack->AttackData.Damage,
 		ProjectileData.Source,
 		hittable->GetOwner()->GetActorLocation(),
-		ProjectileData.SourceFaction
+		ProjectileData.SourceFaction,
+		HitType::Ranged
 	};
 
 	hittable->Hit(data);

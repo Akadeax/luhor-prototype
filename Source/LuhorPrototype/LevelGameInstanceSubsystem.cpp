@@ -17,6 +17,12 @@ void ULevelGameInstanceSubsystem::Initialize(FSubsystemCollectionBase& Collectio
 void ULevelGameInstanceSubsystem::LoadRandomLevel()
 {
 	SavePlayerData();
+
+	if (RoomsCompleted++ == 2)
+	{
+		UGameplayStatics::OpenLevel(GetWorld(), RoomData->UpgradeRoom.Level.GetLongPackageFName());
+		return;
+	}
 	
 	if (RoomsLeft.Num() == 0) RefillRoomsLeft();
 	

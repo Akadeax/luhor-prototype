@@ -229,28 +229,30 @@ void UMeleeAttackerComponent::OnContactCollisionBeginOverlap(
 
 	const FMeleeAttackData& data{ GetCurrentAttack() };
 
-	FHittableHitData hitData{ data.Damage, GetOwner(),hittable->GetOwner()->GetActorLocation(), Faction };
+	FHittableHitData hitData{ data.Damage, GetOwner(),hittable->GetOwner()->GetActorLocation(), Faction, HitType::Melee };
 
-	if (UUpgradesComponent* Upgrades{ Cast<UUpgradesComponent>(GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass())) })
+	if (UUpgradesComponent* upgrades{ Cast<UUpgradesComponent>(GetOwner()->GetComponentByClass(UUpgradesComponent::StaticClass())) })
 	{
-		const FStatModifier modifiers{ Upgrades->GetCurrentModifier() };
+		const FStatModifier modifiers{ upgrades->GetCurrentModifier() };
 		hitData.Damage = (data.Damage + modifiers.MeleeAttackModifier) * modifiers.MeleeAttackMultiplier;
 	}
 
 	hittable->Hit(hitData);
-	bool wasLethal {true};
-	if (UHealthComponent* HealthComp{ Cast<UHealthComponent>(OtherActor->GetComponentByClass(UHealthComponent::StaticClass()))})
+	bool wasLethal{ true };
+	
+	if (UHealthComponent* healthComp{ Cast<UHealthComponent>(OtherActor->GetComponentByClass(UHealthComponent::StaticClass()))})
 	{
-		wasLethal = HealthComp->GetCurrentHealth() <= 0;
+		wasLethal = healthComp->GetCurrentHealth() <= 0;
 		if (wasLethal)
 		{
-			if (ALuhorPlayerCharacter* Character{Cast<ALuhorPlayerCharacter>(OtherActor)})
+			if (Cast<ALuhorPlayerCharacter>(OtherActor))
 			{
-				wasLethal = Cast<UAmbrosiaHealthComponent>(HealthComp)->IsDead();
+				wasLethal = Cast<UAmbrosiaHealthComponent>(healthComp)->IsDead();
 			}	
 		}
 	}
-	OnMeleeAttackHit.Broadcast(hitData,wasLethal);
+	
+	OnMeleeAttackHit.Broadcast(hitData, wasLethal, hittable);
 }
 
 

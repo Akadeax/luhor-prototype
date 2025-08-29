@@ -22,7 +22,7 @@ UGhostUpgrade::UGhostUpgrade()
 	UpgradeName = "Ghost";
 	UpgradeText = "Your dash's cooldown increases by 200%; it goes farther, and during it you are invincible. Dashing doubles your melee attack damage for 2 seconds.";
 	Modifier.MeleeAttackMultiplier = 2;
-	IsUpgradeActive = false;;
+	IsUpgradeActive = false;
 	
 }
 
@@ -32,19 +32,20 @@ void UGhostUpgrade::OnDashEnded()
 	CurrentTimerLength = MaxTimerLength;
 	PlayerHittableComp->MakeVulnerable();
 	UpgradesComponent->RecalculateModifier();
-	UE_LOG(LogTemp, Warning, TEXT("Ghost Activated"));
+	OnEmpowerStart();
 }
 
 void UGhostUpgrade::OnDashStarted()
 {
 	PlayerHittableComp->MakeInvulnerable(50,MakeInvulnerableMode::SetTimeIfLonger);
+
 }
 
 void UGhostUpgrade::OnTimerEnded()
 {
 	IsUpgradeActive = false;
 	UpgradesComponent->RecalculateModifier();
-	UE_LOG(LogTemp, Warning, TEXT("Ghost Ended"));
+	OnEmpowerEnd();
 }
 
 void UGhostUpgrade::Init()

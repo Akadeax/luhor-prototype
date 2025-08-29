@@ -40,13 +40,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FStatModifier Modifier{};
 	
-	ALuhorPlayerCharacter* PlayerCharacter{ nullptr };
+	UPROPERTY(BlueprintReadOnly) ALuhorPlayerCharacter* PlayerCharacter{ nullptr };
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FString UpgradeText{TEXT("Upgrade does stuff")};
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FString UpgradeName{TEXT("Upgrade")};
 	
-	UPROPERTY() 
+	UPROPERTY(BlueprintReadOnly)
 	UUpgradesComponent* UpgradesComponent{ nullptr };
 };
 

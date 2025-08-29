@@ -26,4 +26,7 @@ class LUHORPROTOTYPE_API URoomData : public UDataAsset
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FRoom> Rooms;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FRoom UpgradeRoom;
 };

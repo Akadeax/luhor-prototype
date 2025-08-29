@@ -137,5 +137,5 @@ void URangedAttackerComponent::SpawnProjectile()
 
 void URangedAttackerComponent::OnProjectileHit(const FHittableHitData& Data, bool WasLethal, UHittableComponent* Hittable)
 {
-	OnRangedAttackHit.Broadcast(Data,WasLethal);
+	OnRangedAttackHit.Broadcast(Data,WasLethal, Hittable);
 }

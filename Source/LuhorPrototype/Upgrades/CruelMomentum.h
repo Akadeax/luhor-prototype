@@ -31,7 +31,7 @@ class LUHORPROTOTYPE_API UCruelMomentum : public UBaseUpgrade
 	UPROPERTY(EditAnywhere)
 	float BonusPerHit{0.1f};
 	UFUNCTION()
-	void OnEnemyHit(FHittableHitData Data, bool WasLethal);
+	void OnEnemyHit(FHittableHitData Data, bool WasLethal, UHittableComponent* Hittable);
 	UFUNCTION()
 	void OnReset();
 

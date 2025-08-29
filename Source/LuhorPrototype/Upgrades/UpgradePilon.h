@@ -39,7 +39,7 @@ protected:
 	TArray<TSubclassOf<UBaseUpgrade>> Upgrades{};
 	UPROPERTY()
 	UUpgradesComponent* PlayerUpgradeComp{};
-	enum class PilonState
+	enum class PilonState : uint8
 	{
 		Inactive,
 		Active,

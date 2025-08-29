@@ -63,31 +63,37 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void ResetBools();
 
+	void SetPoisonSiphonPercent(float Val) { PoisonSiphonPercent = Val; }
+	float GetPoisonSiphonPercent() const { return PoisonSiphonPercent; }
+
+	void SetSiphonPercentage(float Val) { SiphonPercentage = Val; }
+	float GetSiphonPercentage() const { return SiphonPercentage; }
+	
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Siphon")
-	float SiphonPercentage{ 5.f };
+	float SiphonPercentage{ 52.f };
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Special Attack")
-	float PoisonedAmbrosiaPerCharge{ 10.f };
+	float PoisonedAmbrosiaPerCharge{ 25.f };
 	
 	UPROPERTY(BlueprintReadOnly, Category="Ambrosia|Special Attack")
 	float MaxPoisonedAmbrosia{ PoisonedAmbrosiaPerCharge };
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Special Attack")
-	float CurrentPoisonedAmbrosia{ 0.f };
+	float CurrentPoisonedAmbrosia{ 25.f };
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Special Attack")
 	float TargetPoisonedAmbrosia{ 0.f };
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Special Attack")
-	float PoisonedAmbrosiaFillSpeed{ 5.f };
+	float PoisonedAmbrosiaFillSpeed{ 20.f };
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambrosia|Special Attack")
-	int StartingCharges{ 1 };
+	int StartingCharges{ 3 };
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia|Special Attack", meta = (ToolTip = "The percentage of ambrosia the player needs to have before putting a part of its ambrosia gain towards filling the special attack meter"))
 	float SpecialChargeCutoff{ 0.66f };
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia")
-	float PassiveAmbrosiaDrain{ 1.25f };
+	float PassiveAmbrosiaDrain{ 2.f };
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia")
 	float TargetHealth{0.f};
@@ -96,13 +102,13 @@ protected:
 	float AmbrosiaFillSpeed{ 5.f };
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia")
-	float StartingAmbrosia{ 50.f };
+	float StartingAmbrosia{ 40.f };
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia" , meta = (ToolTip = "How much ambrosia the player needs to gather to get out of the last stand mode"))
 	float LastStandEndCutoff{ 5.f };
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Ambrosia|Special Attack")
-	float PoisonSiphonPercent{0.2f};
+	float PoisonSiphonPercent{ 0.15f };
 	
 	UPROPERTY() UUpgradesComponent* UpgradesComponent{};
 	

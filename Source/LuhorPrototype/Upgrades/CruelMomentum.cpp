@@ -50,7 +50,7 @@ void UCruelMomentum::DeInit()
 	}
 }
 
-void UCruelMomentum::OnEnemyHit(FHittableHitData Data, bool WasLethal)
+void UCruelMomentum::OnEnemyHit(FHittableHitData Data, bool WasLethal, UHittableComponent* Hittable)
 {
 	if (HitStreak == 0)
 	{

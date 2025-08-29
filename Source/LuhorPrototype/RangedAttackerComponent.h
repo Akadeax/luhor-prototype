@@ -19,7 +19,7 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRangedAttackCancelled);
 	UPROPERTY(BlueprintAssignable) FOnRangedAttackCancelled OnRangedAttackCancelled;
 
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnRangedAttackHit, FHittableHitData, Data, bool, WasLethal);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnRangedAttackHit, FHittableHitData, Data, bool, WasLethal, UHittableComponent*, Hittable);
 	UPROPERTY(BlueprintAssignable) FOnRangedAttackHit OnRangedAttackHit;
 
 	

@@ -12,6 +12,12 @@ class ULuhorMovementComponent;
 class UHealthComponent;
 class UFactionAssociation;
 
+UENUM(BlueprintType)
+enum class HitType : uint8
+{
+	Melee, Ranged
+};
+
 USTRUCT(BlueprintType)
 struct FHittableHitData
 {
@@ -28,7 +34,9 @@ struct FHittableHitData
 
 	UPROPERTY(BlueprintReadWrite)
 	UFactionAssociation* SourceFaction{};
-	
+
+	UPROPERTY(BlueprintReadWrite)
+	HitType Type{};
 };
 
 UENUM(BlueprintType)
@@ -64,6 +72,12 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnHitStunEnd);
 	UPROPERTY(BlueprintAssignable) FOnHitStunEnd OnHitStunEnd;
 
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMarked);
+	UPROPERTY(BlueprintAssignable) FMarked OnMarked;
+
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMarkConsumed);
+	UPROPERTY(BlueprintAssignable) FMarkConsumed OnMarkConsumed;
+
 	
 	void Hit(const FHittableHitData& HitData);
 	
@@ -87,6 +101,8 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	UFactionAssociation* GetFaction() const { return Faction; }
+
+	UFUNCTION(BlueprintCallable) void SetMarked();
 	
 protected:
 	virtual void BeginPlay() override;
@@ -106,6 +122,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
 	FCurvedLaunchData LaunchOnHitData{};
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
+	float MarkedDamageMulti{ 2.f };
+	
 	UPROPERTY() UShapeComponent* HitBox{};
 	UPROPERTY() UHealthComponent* HealthComponent{};
 	UPROPERTY() ULuhorMovementComponent* MovementComponent{};
@@ -117,4 +136,6 @@ protected:
 
 	void TickInvulnerability(float DeltaTime);
 	void TickHitStun(float DeltaTime);
+
+	bool Marked{ false };
 };

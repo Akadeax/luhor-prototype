@@ -81,8 +81,20 @@ TArray<TSubclassOf<UBaseUpgrade>> UUpgradesComponent::GetUpgrades() const
 	return result;
 }
 
+
+bool UUpgradesComponent::HasUpgrade(TSubclassOf<UBaseUpgrade> UpgradeClass) const
+{
+	for (const TObjectPtr<UBaseUpgrade>& upgrade : Upgrades)
+	{
+		if (upgrade->IsA(UpgradeClass)) return true;
+	}
+
+	return false;
+}
+
+
 void UUpgradesComponent::TickComponent(float DeltaTime, enum ELevelTick TickType,
-	FActorComponentTickFunction* ThisTickFunction)
+                                       FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	for (TObjectPtr<UBaseUpgrade> upgrade : Upgrades)

@@ -15,23 +15,34 @@ UCLASS()
 class LUHORPROTOTYPE_API UGhostUpgrade : public UBaseUpgrade
 {
 	GENERATED_BODY()
-
+	
+public:
 	virtual void Tick(float DeltaTime) override;
 
+	UFUNCTION(BlueprintImplementableEvent)
+	void OnEmpowerStart();
 	
+	UFUNCTION(BlueprintImplementableEvent)
+	void OnEmpowerEnd();
+	
+private:
 	UGhostUpgrade();
 	virtual void Init() override;
 	virtual void DeInit() override;
 
 	UFUNCTION()
 	void OnDashEnded();
+	
 	UFUNCTION()
 	void OnDashStarted();
+	
 	void OnTimerEnded();
 
+
+
 	UPROPERTY(EditAnywhere)
-	float MaxTimerLength{2.f};
-	float CurrentTimerLength{0};
-	UHittableComponent* PlayerHittableComp{nullptr};
+	float MaxTimerLength{ 2.f };
 	
+	float CurrentTimerLength{ 0 };
+	UPROPERTY() UHittableComponent* PlayerHittableComp{nullptr};
 };

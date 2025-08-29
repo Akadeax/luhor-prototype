@@ -61,6 +61,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	TArray<TSubclassOf<UBaseUpgrade>> GetUpgrades() const;
 
+	UFUNCTION(BlueprintCallable)
+	bool HasUpgrade(TSubclassOf<UBaseUpgrade> UpgradeClass) const;
+	
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 protected:
 	FStatModifier CurrentStats{};

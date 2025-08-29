@@ -30,5 +30,6 @@ private:
 	
 	UPROPERTY() TObjectPtr<URoomData> RoomData;
 	TArray<FRoom> RoomsLeft;
-	
+
+	int RoomsCompleted{ 0 };
 };

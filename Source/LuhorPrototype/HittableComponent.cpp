@@ -20,6 +20,14 @@ UHittableComponent::UHittableComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 }
 
+
+void UHittableComponent::SetMarked()
+{
+	Marked = true;
+	OnMarked.Broadcast();
+}
+
+
 void UHittableComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -84,7 +92,16 @@ void UHittableComponent::Hit(const FHittableHitData& HitData)
 	
 	if (HealthComponent)
 	{
-		HealthComponent->Damage(HitData.Damage);
+		float damage = HitData.Damage;
+		
+		if (Marked && HitData.Type == HitType::Ranged)
+		{
+			damage *= MarkedDamageMulti;
+			Marked = false;
+			OnMarkConsumed.Broadcast();
+		}
+		
+		HealthComponent->Damage(damage);
 	}
 	if (MovementComponent)
 	{
