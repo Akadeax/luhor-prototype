@@ -25,11 +25,12 @@ public:
 	UPROPERTY(BlueprintReadOnly) FPlayerSaveData PlayerSaveData;
 	UFUNCTION(BlueprintCallable)
 	void RefillRoomsLeft();
+	UFUNCTION(BlueprintCallable)
+	int GetRoomsCompleted(){return RoomsCompleted;}
 private:
 	void SavePlayerData();
 	
 	UPROPERTY() TObjectPtr<URoomData> RoomData;
 	TArray<FRoom> RoomsLeft;
-
 	int RoomsCompleted{ 0 };
 };
