@@ -14,10 +14,17 @@ class LUHORPROTOTYPE_API UHeadDisplayWidgetComponent : public UWidgetComponent
 public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHeadDisplayChanged, UTexture2D*, Texture, float, Time);
 	UPROPERTY(BlueprintAssignable) FOnHeadDisplayChanged OnHeadDisplayChanged;
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHeadDisplayActivated, UTexture2D*, Texture);
+	UPROPERTY(BlueprintAssignable) FOnHeadDisplayActivated OnHeadDisplayActivated;
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnHeadDisplayDeactivated);
+	UPROPERTY(BlueprintAssignable) FOnHeadDisplayDeactivated OnHeadDisplayDeactivated;
 	
 	UFUNCTION(BlueprintCallable)
 	void Display(FName Display, float Time);
-	
+	UFUNCTION(blueprintCallable)
+	void IndefiniteDisplay(FName Display);
+	UFUNCTION(blueprintCallable)
+	void DeactivateDisplay();
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	TMap<FName, UTexture2D*> HeadDisplays{};
